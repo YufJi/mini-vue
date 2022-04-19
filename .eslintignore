@@ -1,0 +1,10 @@
+node_modules/
+dist/
+esm/
+build/
+template/
+test/
+vendor/
+assets/
+static/
+example/
