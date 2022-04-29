@@ -11,8 +11,6 @@ import {
 } from '../util/index';
 
 import {
-  resolveAsyncComponent,
-  createAsyncPlaceholder,
   extractPropsFromVNodeData,
 } from './helpers/index';
 
@@ -109,45 +107,17 @@ export function createComponent(Ctor, data, context, children, tag) {
     return;
   }
 
-  // async component
-  let asyncFactory;
-  if (isUndef(Ctor.cid)) {
-    asyncFactory = Ctor;
-    Ctor = resolveAsyncComponent(asyncFactory, baseCtor);
-    if (Ctor === undefined) {
-      // return a placeholder node for async component, which is rendered
-      // as a comment node but preserves all the raw information for the node.
-      // the information will be used for async server-rendering and hydration.
-      return createAsyncPlaceholder(
-        asyncFactory,
-        data,
-        context,
-        children,
-        tag,
-      );
-    }
-  }
-
   data = data || {};
 
   // resolve constructor options in case global mixins are applied after
   // component constructor creation
   resolveConstructorOptions(Ctor);
 
-  // transform component v-model data into props & events
-  if (isDef(data.model)) {
-    transformModel(Ctor.options, data);
-  }
-
   // extract props
   const propsData = extractPropsFromVNodeData(data, Ctor, tag);
 
   // extract listeners, since these needs to be treated as
   // child component listeners instead of DOM listeners
-  const listeners = data.on;
-  // replace with listeners with .native modifier
-  // so it gets processed during parent component patch.
-  // data.on = data.nativeOn;
 
   if (isTrue(Ctor.options.abstract)) {
     // abstract components do not keep anything
@@ -167,14 +137,13 @@ export function createComponent(Ctor, data, context, children, tag) {
   // return a placeholder vnode
   const name = Ctor.options.name || tag;
   const vnode = new VNode(
-    `vue-component-${Ctor.cid}${name ? `-${name}` : ''}`,
+    name || `vue-component-${Ctor.cid}${name ? `-${name}` : ''}`,
     data,
     undefined,
     undefined,
     undefined,
     context,
-    { Ctor, propsData, listeners, tag, children },
-    asyncFactory,
+    { Ctor, propsData, listeners: {}, tag, children },
   );
 
   return vnode;
@@ -197,6 +166,7 @@ export function createComponentInstanceForVnode(
     options.render = inlineTemplate.render;
     options.staticRenderFns = inlineTemplate.staticRenderFns;
   }
+
   return new vnode.componentOptions.Ctor(options);
 }
 
@@ -220,26 +190,4 @@ function mergeHook(f1, f2) {
   };
   merged._merged = true;
   return merged;
-}
-
-// transform component v-model info (value and callback) into
-// prop and event handler respectively.
-function transformModel(options, data) {
-  const prop = (options.model && options.model.prop) || 'value';
-  const event = (options.model && options.model.event) || 'input';
-  (data.attrs || (data.attrs = {}))[prop] = data.model.value;
-  const on = data.on || (data.on = {});
-  const existing = on[event];
-  const { callback } = data.model;
-  if (isDef(existing)) {
-    if (
-      Array.isArray(existing)
-        ? existing.indexOf(callback) === -1
-        : existing !== callback
-    ) {
-      on[event] = [callback].concat(existing);
-    }
-  } else {
-    on[event] = callback;
-  }
 }

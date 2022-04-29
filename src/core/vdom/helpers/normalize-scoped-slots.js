@@ -1,7 +1,6 @@
 import { def } from 'core/util/lang';
 import { normalizeChildren } from 'core/vdom/helpers/normalize-children';
 import { emptyObject } from 'shared/util';
-import { isAsyncPlaceholder } from './is-async-placeholder';
 
 export function normalizeScopedSlots(
   slots,
@@ -62,7 +61,7 @@ function normalizeScopedSlot(normalSlots, key, fn) {
     const vnode = res && res[0];
     return res && (
       !vnode
-      || (res.length === 1 && vnode.isComment && !isAsyncPlaceholder(vnode)) // #9658, #10391
+      || (res.length === 1 && vnode.isComment) // #9658, #10391
     ) ? undefined
       : res;
   };

@@ -74,11 +74,14 @@ export function lifecycleMixin(Vue) {
     if (prevEl) {
       prevEl.__vue__ = null;
     }
+
     if (vm.$el) {
       vm.$el.__vue__ = vm;
     }
+
     // if parent is an HOC, update its $el as well
     if (vm.$vnode && vm.$parent && vm.$vnode === vm.$parent._vnode) {
+      console.log(11);
       vm.$parent.$el = vm.$el;
     }
     // updated hook is called by the scheduler to ensure that children are
@@ -138,6 +141,7 @@ export function lifecycleMixin(Vue) {
 
 export function mountComponent(vm, el, hydrating) {
   vm.$el = el;
+
   if (!vm.$options.render) {
     vm.$options.render = createEmptyVNode;
     if (process.env.NODE_ENV !== 'production') {
@@ -158,6 +162,7 @@ export function mountComponent(vm, el, hydrating) {
       }
     }
   }
+
   callHook(vm, 'beforeMount');
 
   let updateComponent;
@@ -195,6 +200,7 @@ export function mountComponent(vm, el, hydrating) {
       }
     },
   }, true /* isRenderWatcher */);
+
   hydrating = false;
 
   // manually mounted instance, call mounted on self

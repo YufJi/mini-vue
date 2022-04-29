@@ -34,16 +34,11 @@ const hooks = ['create', 'activate', 'update', 'remove', 'destroy'];
 function sameVnode(a, b) {
   return (
     a.key === b.key
-    && a.asyncFactory === b.asyncFactory && (
-      (
-        a.tag === b.tag
-        && a.isComment === b.isComment
-        && isDef(a.data) === isDef(b.data)
-        && sameInputType(a, b)
-      ) || (
-        isTrue(a.isAsyncPlaceholder)
-        && isUndef(b.asyncFactory.error)
-      )
+    && (
+      a.tag === b.tag
+      && a.isComment === b.isComment
+      && isDef(a.data) === isDef(b.data)
+      && sameInputType(a, b)
     )
   );
 }
@@ -85,6 +80,10 @@ export function createPatchFunction(backend) {
 
   function emptyNodeAt(elm) {
     return new VNode(nodeOps.tagName(elm).toLowerCase(), {}, [], undefined, elm);
+  }
+
+  function emptyDocumentFragmentAt(fragment) {
+    return new VNode('fragment', {}, [], undefined, fragment);
   }
 
   function createRmCb(childElm, listeners) {
@@ -164,6 +163,7 @@ export function createPatchFunction(backend) {
       if (isDef(data)) {
         invokeCreateHooks(vnode, insertedVnodeQueue);
       }
+      // 插入父元素
       insert(parentElm, vnode.elm, refElm);
 
       if (process.env.NODE_ENV !== 'production' && data && data.pre) {
@@ -191,10 +191,14 @@ export function createPatchFunction(backend) {
       // in that case we can just return the element and be done.
       if (isDef(vnode.componentInstance)) {
         initComponent(vnode, insertedVnodeQueue);
+
+        // insert(vnode.elm, vnode.componentInstance.$el);
         insert(parentElm, vnode.elm, refElm);
+
         if (isTrue(isReactivated)) {
           reactivateComponent(vnode, insertedVnodeQueue, parentElm, refElm);
         }
+
         return true;
       }
     }
@@ -207,6 +211,8 @@ export function createPatchFunction(backend) {
     }
 
     vnode.elm = vnode.componentInstance.$el;
+    // vnode.elm.setAttribute('name', vnode.tag);
+    // vnode.elm = nodeOps.createElement(vnode.tag, vnode);
 
     if (isPatchable(vnode)) {
       invokeCreateHooks(vnode, insertedVnodeQueue);
@@ -377,13 +383,15 @@ export function createPatchFunction(backend) {
 
   function updateChildren(parentElm, oldCh, newCh, insertedVnodeQueue, removeOnly) {
     let oldStartIdx = 0;
-    let newStartIdx = 0;
     let oldEndIdx = oldCh.length - 1;
     let oldStartVnode = oldCh[0];
     let oldEndVnode = oldCh[oldEndIdx];
+
+    let newStartIdx = 0;
     let newEndIdx = newCh.length - 1;
     let newStartVnode = newCh[0];
     let newEndVnode = newCh[newEndIdx];
+
     let oldKeyToIdx;
     let idxInOld;
     let vnodeToMove;
@@ -422,10 +430,14 @@ export function createPatchFunction(backend) {
         oldEndVnode = oldCh[--oldEndIdx];
         newStartVnode = newCh[++newStartIdx];
       } else {
-        if (isUndef(oldKeyToIdx)) oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx);
+        if (isUndef(oldKeyToIdx)) {
+          oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx);
+        }
+
         idxInOld = isDef(newStartVnode.key)
           ? oldKeyToIdx[newStartVnode.key]
           : findIdxInOld(newStartVnode, oldCh, oldStartIdx, oldEndIdx);
+
         if (isUndef(idxInOld)) { // New element
           createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm, false, newCh, newStartIdx);
         } else {
@@ -439,9 +451,11 @@ export function createPatchFunction(backend) {
             createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm, false, newCh, newStartIdx);
           }
         }
+
         newStartVnode = newCh[++newStartIdx];
       }
     }
+
     if (oldStartIdx > oldEndIdx) {
       refElm = isUndef(newCh[newEndIdx + 1]) ? null : newCh[newEndIdx + 1].elm;
       addVnodes(parentElm, refElm, newCh, newStartIdx, newEndIdx, insertedVnodeQueue);
@@ -487,15 +501,6 @@ export function createPatchFunction(backend) {
 
     const elm = vnode.elm = oldVnode.elm;
 
-    if (isTrue(oldVnode.isAsyncPlaceholder)) {
-      if (isDef(vnode.asyncFactory.resolved)) {
-        hydrate(oldVnode.elm, vnode, insertedVnodeQueue);
-      } else {
-        vnode.isAsyncPlaceholder = true;
-      }
-      return;
-    }
-
     // reuse element for static trees.
     // note we only do this if the vnode is cloned -
     // if the new node is not cloned it means the render functions have been
@@ -517,13 +522,21 @@ export function createPatchFunction(backend) {
 
     const oldCh = oldVnode.children;
     const ch = vnode.children;
+
     if (isDef(data) && isPatchable(vnode)) {
-      for (i = 0; i < cbs.update.length; ++i) cbs.update[i](oldVnode, vnode);
-      if (isDef(i = data.hook) && isDef(i = i.update)) i(oldVnode, vnode);
+      for (i = 0; i < cbs.update.length; ++i) {
+        cbs.update[i](oldVnode, vnode);
+      }
+      if (isDef(i = data.hook) && isDef(i = i.update)) {
+        i(oldVnode, vnode);
+      }
     }
+
     if (isUndef(vnode.text)) {
       if (isDef(oldCh) && isDef(ch)) {
-        if (oldCh !== ch) updateChildren(elm, oldCh, ch, insertedVnodeQueue, removeOnly);
+        if (oldCh !== ch) {
+          updateChildren(elm, oldCh, ch, insertedVnodeQueue, removeOnly);
+        }
       } else if (isDef(ch)) {
         if (process.env.NODE_ENV !== 'production') {
           checkDuplicateKeys(ch);
@@ -538,8 +551,11 @@ export function createPatchFunction(backend) {
     } else if (oldVnode.text !== vnode.text) {
       nodeOps.setTextContent(elm, vnode.text);
     }
+
     if (isDef(data)) {
-      if (isDef(i = data.hook) && isDef(i = i.postpatch)) i(oldVnode, vnode);
+      if (isDef(i = data.hook) && isDef(i = i.postpatch)) {
+        i(oldVnode, vnode);
+      }
     }
   }
 
@@ -569,10 +585,6 @@ export function createPatchFunction(backend) {
     inVPre = inVPre || (data && data.pre);
     vnode.elm = elm;
 
-    if (isTrue(vnode.isComment) && isDef(vnode.asyncFactory)) {
-      vnode.isAsyncPlaceholder = true;
-      return true;
-    }
     // assert node match
     if (process.env.NODE_ENV !== 'production') {
       if (!assertNodeMatch(elm, vnode, inVPre)) {
@@ -669,7 +681,10 @@ export function createPatchFunction(backend) {
 
   return function patch(oldVnode, vnode, hydrating, removeOnly) {
     if (isUndef(vnode)) {
-      if (isDef(oldVnode)) invokeDestroyHook(oldVnode);
+      if (isDef(oldVnode)) {
+        invokeDestroyHook(oldVnode);
+      }
+
       return;
     }
 
@@ -682,28 +697,17 @@ export function createPatchFunction(backend) {
       createElm(vnode, insertedVnodeQueue);
     } else {
       const isRealElement = isDef(oldVnode.nodeType);
+
       if (!isRealElement && sameVnode(oldVnode, vnode)) {
         // patch existing root node
         patchVnode(oldVnode, vnode, insertedVnodeQueue, null, null, removeOnly);
       } else {
         if (isRealElement) {
-          if (isTrue(hydrating)) {
-            if (hydrate(oldVnode, vnode, insertedVnodeQueue)) {
-              invokeInsertHook(vnode, insertedVnodeQueue, true);
-              return oldVnode;
-            } else if (process.env.NODE_ENV !== 'production') {
-              warn(
-                'The client-side rendered virtual DOM tree is not matching '
-                + 'server-rendered content. This is likely caused by incorrect '
-                + 'HTML markup, for example nesting block-level elements inside '
-                + '<p>, or missing <tbody>. Bailing hydration and performing '
-                + 'full client-side render.',
-              );
-            }
-          }
           // either not server-rendered, or hydration failed.
           // create an empty node and replace it
-          oldVnode = emptyNodeAt(oldVnode);
+          if (nodeOps.isElement(oldVnode)) {
+            oldVnode = emptyNodeAt(oldVnode);
+          }
         }
 
         // replacing existing element

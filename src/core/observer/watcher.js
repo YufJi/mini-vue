@@ -1,3 +1,4 @@
+import { get } from 'lodash';
 import {
   warn,
   remove,
@@ -52,17 +53,13 @@ export default class Watcher {
     if (typeof expOrFn === 'function') {
       this.getter = expOrFn;
     } else {
-      this.getter = parsePath(expOrFn);
-      if (!this.getter) {
-        this.getter = noop;
-        process.env.NODE_ENV !== 'production' && warn(
-          `Failed watching path: "${expOrFn}" `
-          + 'Watcher only accepts simple dot-delimited paths. '
-          + 'For full control, use a function instead.',
-          vm,
-        );
-      }
+      this.getter = function (obj) {
+        if (!obj) return;
+        obj = get(obj, expOrFn);
+        return obj;
+      };
     }
+
     this.value = this.lazy
       ? undefined
       : this.get();

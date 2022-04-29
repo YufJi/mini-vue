@@ -1,5 +1,5 @@
 export default class VNode {
-  constructor(tag, data, children, text, elm, context, componentOptions, asyncFactory) {
+  constructor(tag, data, children, text, elm, context, componentOptions) {
     this.tag = tag;
     this.data = data;
     this.children = children;
@@ -20,9 +20,6 @@ export default class VNode {
     this.isComment = false;
     this.isCloned = false;
     this.isOnce = false;
-    this.asyncFactory = asyncFactory;
-    this.asyncMeta = undefined;
-    this.isAsyncPlaceholder = false;
   }
 
   // DEPRECATED: alias for componentInstance for backwards compat.
@@ -59,7 +56,6 @@ export function cloneVNode(vnode) {
     vnode.elm,
     vnode.context,
     vnode.componentOptions,
-    vnode.asyncFactory,
   );
   cloned.ns = vnode.ns;
   cloned.isStatic = vnode.isStatic;
@@ -68,7 +64,6 @@ export function cloneVNode(vnode) {
   cloned.fnContext = vnode.fnContext;
   cloned.fnOptions = vnode.fnOptions;
   cloned.fnScopeId = vnode.fnScopeId;
-  cloned.asyncMeta = vnode.asyncMeta;
   cloned.isCloned = true;
   return cloned;
 }

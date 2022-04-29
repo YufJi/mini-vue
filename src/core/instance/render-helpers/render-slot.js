@@ -22,10 +22,5 @@ export function renderSlot(name, fallbackRender, props, bindObject) {
       || (typeof fallbackRender === 'function' ? fallbackRender() : fallbackRender);
   }
 
-  const target = props && props.slot;
-  if (target) {
-    return this.$createElement('template', { slot: target }, nodes);
-  } else {
-    return nodes;
-  }
+  return nodes;
 }

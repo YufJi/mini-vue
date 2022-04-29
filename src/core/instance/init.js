@@ -71,6 +71,7 @@ export function initMixin(Vue) {
 }
 
 export function initInternalComponent(vm, options) {
+  // 拿到构造函数上的options
   const opts = vm.$options = Object.create(vm.constructor.options);
   // doing this because it's faster than dynamic enumeration.
   const parentVnode = options._parentVnode;
@@ -83,6 +84,7 @@ export function initInternalComponent(vm, options) {
   opts._renderChildren = vnodeComponentOptions.children;
   opts._componentTag = vnodeComponentOptions.tag;
 
+  // inline-template带过来的
   if (options.render) {
     opts.render = options.render;
     opts.staticRenderFns = options.staticRenderFns;

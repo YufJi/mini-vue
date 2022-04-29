@@ -40,8 +40,11 @@ function isTextNode(node) {
 
 function normalizeArrayChildren(children, nestedIndex) {
   const res = [];
-  let i; let c; let lastIndex; let
-    last;
+  let i;
+  let c;
+  let lastIndex;
+  let last;
+
   for (i = 0; i < children.length; i++) {
     c = children[i];
     if (isUndef(c) || typeof c === 'boolean') continue;

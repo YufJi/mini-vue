@@ -103,13 +103,7 @@ export function addHandler(el, name, value, modifiers, important, warn, range, d
     name = prependModifierMarker('&', name, dynamic);
   }
 
-  let events;
-  if (modifiers.native) {
-    delete modifiers.native;
-    events = el.nativeEvents || (el.nativeEvents = {});
-  } else {
-    events = el.events || (el.events = {});
-  }
+  const events = el.events || (el.events = {});
 
   const newHandler = rangeSetItem({ value: value.trim(), dynamic }, range);
   if (modifiers !== emptyObject) {

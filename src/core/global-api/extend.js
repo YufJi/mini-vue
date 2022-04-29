@@ -32,6 +32,7 @@ export function initExtend(Vue) {
       this._init(options);
     };
 
+    // 继承Vue
     Sub.prototype = Object.create(Super.prototype);
     Sub.prototype.constructor = Sub;
     Sub.cid = cid++;

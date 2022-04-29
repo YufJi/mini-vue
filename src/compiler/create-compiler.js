@@ -1,5 +1,4 @@
 import { extend } from 'shared/util';
-import { detectErrors } from './error-detector';
 import { createCompileToFunctionFn } from './to-function';
 
 export function createCompilerCreator(baseCompile) {
@@ -47,9 +46,6 @@ export function createCompilerCreator(baseCompile) {
       finalOptions.warn = warn;
 
       const compiled = baseCompile(template.trim(), finalOptions);
-      if (process.env.NODE_ENV !== 'production') {
-        detectErrors(compiled.ast, warn);
-      }
       compiled.errors = errors;
       compiled.tips = tips;
       return compiled;

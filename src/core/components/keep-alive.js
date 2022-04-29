@@ -138,6 +138,7 @@ export default {
 
       vnode.data.keepAlive = true;
     }
+
     return vnode || (slot && slot[0]);
   },
 };

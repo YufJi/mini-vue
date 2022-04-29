@@ -193,11 +193,9 @@ export function genData(el, state) {
   }
   // event handlers
   if (el.events) {
-    data += `${genHandlers(el.events, false)},`;
+    data += `${genHandlers(el.events)},`;
   }
-  if (el.nativeEvents) {
-    data += `${genHandlers(el.nativeEvents, true)},`;
-  }
+
   // slot target
   // only for non-scoped slots
   if (el.slotTarget && !el.slotScope) {

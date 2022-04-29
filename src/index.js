@@ -4,11 +4,11 @@ import * as compiler from './web/entry-compiler';
 import './index.css';
 
 const gloablComA = `
-<virtual>
+<div>
   <span>i am global com A</span>
 
   <slot name="abc" wx:for="{{[1,2]}}" ></slot>
-</virtual>
+</div>
 `;
 
 const globalA = compiler.compileToFunctions(gloablComA);
@@ -46,11 +46,17 @@ console.log('resultA:', compiler.compile(templateA));
 const ComponentA = {
   props: {
     message: String,
+    list: Array,
   },
   data() {
     return {
       aa: '',
     };
+  },
+  watch: {
+    'list[2]': function (newVal, oldVal) {
+      console.log('watch:', newVal, oldVal);
+    },
   },
   created() {
     console.log('comA created');
@@ -62,6 +68,9 @@ const ComponentA = {
       fnc: 'fn3',
     });
   },
+  updated() {
+    console.log('updated::', this.$props);
+  },
   methods: {
     setData(data) {
       const vm = this;
@@ -72,7 +81,6 @@ const ComponentA = {
     eventBinder(method, modifiers) {
       const vm = this;
       const handler = function ($event) {
-        console.log('call:', method);
         if (modifiers.stop) {
           $event.stopPropagation();
         }
@@ -103,36 +111,56 @@ const ComponentA = {
 };
 
 const template = `
-  <tiny-page>
-    <header class="abc-{{name}} sad" style="color: {{color}}; font-size: 12px" catch:click="{{fn}}1">
-      <h1 bind:click="fn2">I'm a template!</h1>
-    </header>
-    <p wx:if="{{message === 'abc'}}">{{ message }}</p>
-    <p wx:else>No message.</p>
-    <div hidden="{{hide ? true : false}}" wx:for="{{[zero,1,2,3]}}">{{item}}</div>
-    <div wx:for="{{list}}" wx:for-index="idx" wx:key="*this"> {{idx}} : {{item}}</div>
+<div name="page">
+  <header class="abc-{{name}} sad" style="color: {{color}}; font-size: 12px" catch:click="{{fn}}1">
+    <h1 bind:click="fn2">I'm a template!</h1>
+  </header>
+  <p wx:if="{{message === 'abc'}}">{{ message }}</p>
+  <p wx:else>No message.</p>
+  <div hidden="{{hide}}" wx:for="{{[zero,1,2,3]}}">{{item}}</div>
+  <div wx:for="{{list}}" wx:for-index="idx" wx:key="*this"> {{idx}} : {{item}}</div>
 
-    <component-a id="adsf" bind:abc="fn3" message="{{message}}">
-      <div slot="abc">a's slot {{slot}}</div>
-    </component-a>
+  <component-a>
+    <div slot="abc">a's slot {{slot}}</div>
+  </component-a>
 
-    <global-a>
-      <div slot="abc">global's slot {{slot}}</div>
-    </global-a>
+  <global-a>
+    <div slot="abc">global's slot {{slot}}</div>
+  </global-a>
 
-    <div>
-      <div>sadaf</div>
-      <span>dadd</span>
-    </div>
-  </tiny-page>
+  <block wx:for="{{list}}" wx:key="*this"> 
+    <tiny-view>dsa</tiny-view>
+    <div>ddsad</div>
+    <div>{{item}}</div>
+  </block>
+</div>
 `;
 
 const result = compiler.compileToFunctions(template);
 
 console.log('result:', compiler.compile(template));
 
+const mixinA = {
+  data() {
+    return {
+      message: 'hello A',
+      foo: 'abc A',
+    };
+  },
+};
+
+const mixinB = {
+  data() {
+    return {
+      message: 'hello B',
+      foo: 'abc B',
+    };
+  },
+};
+
 const App = {
   name: 'tiny-page',
+  mixins: [mixinA, mixinB],
   data: {
     fn: 'fn',
     slot: 'abc',
@@ -143,6 +171,11 @@ const App = {
     zero: 0,
     list: [1, 2, 3],
   },
+  watch: {
+    'list[2]': function (newVal, oldVal) {
+      console.log('watch111:', newVal, oldVal);
+    },
+  },
   created() {
     console.log('page created');
   },
@@ -150,7 +183,7 @@ const App = {
     console.log('page beforeMount');
   },
   mounted() {
-    console.log('page mounted');
+    console.log('page mounted', this);
   },
   methods: {
     setData(data) {
@@ -162,7 +195,6 @@ const App = {
     eventBinder(method, modifiers) {
       const vm = this;
       const handler = function ($event) {
-        console.log('call:', method);
         if (modifiers.stop) {
           $event.stopPropagation();
         }
@@ -176,7 +208,7 @@ const App = {
         name: 'xhq',
         color: 'yellow',
         message: 'abc',
-        'list[2]': 99,
+        'list[1]': 8,
         hide: true,
         slot: 'abc',
       });

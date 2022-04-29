@@ -17,8 +17,6 @@ import { parseText } from './text-parser';
 import { hasExpression, transformExpression } from './expression';
 
 export const onRE = /^@|^v-on:/;
-// 指令正则
-export const dirRE = /^v-|^@|^:|^#/;
 
 const argRE = /:(.*)$/;
 export const bindRE = /^:|^\.|^v-bind:/;
@@ -377,6 +375,7 @@ export function processElement(element, options) {
     && !element.attrsList.length
   );
 
+  processBlock(element);
   processSlotContent(element);
   processSlotOutlet(element);
   processComponent(element);
@@ -569,6 +568,12 @@ function processSlotOutlet(el) {
         getRawBindingAttr(el, 'key'),
       );
     }
+  }
+}
+
+function processBlock(el) {
+  if (el.tag === 'block') {
+    el.tag = 'fragment';
   }
 }
 

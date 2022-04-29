@@ -24,10 +24,15 @@ function updateAttrs(oldVnode, vnode) {
   if (isUndef(oldVnode.data.attrs) && isUndef(vnode.data.attrs)) {
     return;
   }
-  let key; 
-  let cur; 
+  let key;
+  let cur;
   let old;
   const { elm } = vnode;
+
+  if (!elm.tagName) {
+    return;
+  }
+
   const oldAttrs = oldVnode.data.attrs || {};
   let attrs = vnode.data.attrs || {};
   // clone observed objects, as the user probably wants to mutate it
@@ -42,12 +47,7 @@ function updateAttrs(oldVnode, vnode) {
       setAttr(elm, key, cur, vnode.data.pre);
     }
   }
-  // #4391: in IE9, setting type can reset value for input[type=radio]
-  // #6666: IE/Edge forces progress value down to 1 before setting a max
-  /* istanbul ignore if */
-  if ((isIE || isEdge) && attrs.value !== oldAttrs.value) {
-    setAttr(elm, 'value', attrs.value);
-  }
+
   for (key in oldAttrs) {
     if (isUndef(attrs[key])) {
       if (isXlink(key)) {

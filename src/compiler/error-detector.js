@@ -1,4 +1,4 @@
-import { dirRE, onRE } from './parser/index';
+import { onRE } from './parser/index';
 
 // these keywords should not appear inside expressions, but operators like
 // typeof, instanceof and in are allowed
@@ -26,19 +26,17 @@ export function detectErrors(ast, warn) {
 function checkNode(node, warn) {
   if (node.type === 1) {
     for (const name in node.attrsMap) {
-      if (dirRE.test(name)) {
-        const value = node.attrsMap[name];
-        if (value) {
-          const range = node.rawAttrsMap[name];
-          if (name === 'v-for') {
-            checkFor(node, `v-for="${value}"`, warn, range);
-          } else if (name === 'v-slot' || name[0] === '#') {
-            checkFunctionParameterExpression(value, `${name}="${value}"`, warn, range);
-          } else if (onRE.test(name)) {
-            checkEvent(value, `${name}="${value}"`, warn, range);
-          } else {
-            checkExpression(value, `${name}="${value}"`, warn, range);
-          }
+      const value = node.attrsMap[name];
+      if (value) {
+        const range = node.rawAttrsMap[name];
+        if (name === 'wx:for') {
+          checkFor(node, `wx:for="${value}"`, warn, range);
+        } else if (name === 'slot') {
+          checkFunctionParameterExpression(value, `${name}="${value}"`, warn, range);
+        } else if (onRE.test(name)) {
+          checkEvent(value, `${name}="${value}"`, warn, range);
+        } else {
+          checkExpression(value, `${name}="${value}"`, warn, range);
         }
       }
     }
@@ -67,9 +65,8 @@ function checkEvent(exp, text, warn, range) {
 
 function checkFor(node, text, warn, range) {
   checkExpression(node.for || '', text, warn, range);
-  checkIdentifier(node.forItem, 'wx:for item', text, warn, range);
-  checkIdentifier(node.iterator1, 'wx:for iterator', text, warn, range);
-  checkIdentifier(node.iterator2, 'wx:for iterator', text, warn, range);
+  checkIdentifier(node.forItem, 'wx:for-item', text, warn, range);
+  checkIdentifier(node.forIndex, 'wx:for-index', text, warn, range);
 }
 
 function checkIdentifier(

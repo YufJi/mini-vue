@@ -69,6 +69,7 @@ export function _createElement(context, tag, data, children, normalizationType) 
     data.scopedSlots = { default: children[0] };
     children.length = 0;
   }
+
   if (normalizationType === ALWAYS_NORMALIZE) {
     children = normalizeChildren(children);
   } else if (normalizationType === SIMPLE_NORMALIZE) {
@@ -82,14 +83,10 @@ export function _createElement(context, tag, data, children, normalizationType) 
     let Ctor;
     ns = (context.$vnode && context.$vnode.ns) || config.getTagNamespace(tag);
 
-    if (config.isReservedTag(tag)) {
+    if (tag === 'fragment') {
+      vnode = children;
+    } else if (config.isReservedTag(tag)) {
       // platform built-in elements
-      if (process.env.NODE_ENV !== 'production' && isDef(data) && isDef(data.nativeOn) && data.tag !== 'component') {
-        warn(
-          `The .native modifier for v-on is only valid on components but it was used on <${tag}>.`,
-          context,
-        );
-      }
       vnode = new VNode(config.parsePlatformTagName(tag), data, children, undefined, undefined, context);
     } else if ((!data || !data.pre) && isDef(Ctor = resolveAsset(context.$options, 'components', tag))) {
       // component
@@ -104,6 +101,7 @@ export function _createElement(context, tag, data, children, normalizationType) 
     // direct component options / constructor
     vnode = createComponent(tag, data, context, children);
   }
+
   if (Array.isArray(vnode)) {
     return vnode;
   } else if (isDef(vnode)) {

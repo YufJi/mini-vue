@@ -5,6 +5,7 @@ Object.defineProperty(exports, '__esModule', { value: true });
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var deindent = _interopDefault(require('de-indent'));
+require('lodash');
 var he = _interopDefault(require('he'));
 
 /* @flow */
@@ -191,13 +192,6 @@ var isNonPhrasingTag = makeMap(
 );
 
 /**
- * unicode letters used for parsing html tags, component names and property paths.
- * using https://www.w3.org/TR/html53/semantics-scripting.html#potentialcustomelementname
- * skipping \u10000-\uEFFFF due to it freezing up PhantomJS
- */
-var unicodeRegExp = /a-zA-Z\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD/;
-
-/**
  * Define a property.
  */
 function def(obj, key, val, enumerable) {
@@ -208,6 +202,13 @@ function def(obj, key, val, enumerable) {
     configurable: true,
   });
 }
+
+/**
+ * unicode letters used for parsing html tags, component names and property paths.
+ * using https://www.w3.org/TR/html53/semantics-scripting.html#potentialcustomelementname
+ * skipping \u10000-\uEFFFF due to it freezing up PhantomJS
+ */
+var unicodeRegExp = /a-zA-Z\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD/;
 
 /**
  * Not type-checking this file because it's mostly vendor code.
@@ -814,13 +815,7 @@ function addHandler(el, name, value, modifiers, important, warn, range, dynamic)
     name = prependModifierMarker('&', name, dynamic);
   }
 
-  var events;
-  if (modifiers.native) {
-    delete modifiers.native;
-    events = el.nativeEvents || (el.nativeEvents = {});
-  } else {
-    events = el.events || (el.events = {});
-  }
+  var events = el.events || (el.events = {});
 
   var newHandler = rangeSetItem({ value: value.trim(), dynamic: dynamic }, range);
   if (modifiers !== emptyObject) {
@@ -958,10 +953,6 @@ function transformExpression(str) {
 
   return gen.join(' + ');
 }
-
-var onRE = /^@|^v-on:/;
-// 指令正则
-var dirRE = /^v-|^@|^:|^#/;
 
 var lineBreakRE = /[\r\n]/;
 var whitespaceRE = /[ \f\t\r\n]+/g;
@@ -1314,6 +1305,7 @@ function processElement(element, options) {
     && !element.attrsList.length
   );
 
+  processBlock(element);
   processSlotContent(element);
   processSlotOutlet(element);
   processComponent(element);
@@ -1506,6 +1498,12 @@ function processSlotOutlet(el) {
         getRawBindingAttr(el, 'key')
       );
     }
+  }
+}
+
+function processBlock(el) {
+  if (el.tag === 'block') {
+    el.tag = 'fragment';
   }
 }
 
@@ -1720,8 +1718,8 @@ function isDirectChildOfTemplateFor(node) {
   return false;
 }
 
-function genHandlers(events, isNative) {
-  var prefix = isNative ? 'nativeOn:' : 'on:';
+function genHandlers(events) {
+  var prefix = 'on:';
   var staticHandlers = '';
 
   for (var name in events) {
@@ -1930,11 +1928,9 @@ function genData(el, state) {
   }
   // event handlers
   if (el.events) {
-    data += (genHandlers(el.events, false)) + ",";
+    data += (genHandlers(el.events)) + ",";
   }
-  if (el.nativeEvents) {
-    data += (genHandlers(el.nativeEvents, true)) + ",";
-  }
+
   // slot target
   // only for non-scoped slots
   if (el.slotTarget && !el.slotScope) {
@@ -2222,129 +2218,6 @@ function transformSpecialNewlines(text) {
   return text
     .replace(/\u2028/g, '\\u2028')
     .replace(/\u2029/g, '\\u2029');
-}
-
-// these keywords should not appear inside expressions, but operators like
-// typeof, instanceof and in are allowed
-var prohibitedKeywordRE = new RegExp(("\\b" + ((
-  'do,if,for,let,new,try,var,case,else,with,await,break,catch,class,const,'
-  + 'super,throw,while,yield,delete,export,import,return,switch,default,'
-  + 'extends,finally,continue,debugger,function,arguments'
-).split(',').join('\\b|\\b')) + "\\b"));
-
-// these unary operators should not be used as property/method names
-var unaryOperatorsRE = new RegExp(("\\b" + ((
-  'delete,typeof,void'
-).split(',').join('\\s*\\([^\\)]*\\)|\\b')) + "\\s*\\([^\\)]*\\)"));
-
-// strip strings in expressions
-var stripStringRE = /'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*\$\{|\}(?:[^`\\]|\\.)*`|`(?:[^`\\]|\\.)*`/g;
-
-// detect problematic expressions in a template
-function detectErrors(ast, warn) {
-  if (ast) {
-    checkNode(ast, warn);
-  }
-}
-
-function checkNode(node, warn) {
-  if (node.type === 1) {
-    for (var name in node.attrsMap) {
-      if (dirRE.test(name)) {
-        var value = node.attrsMap[name];
-        if (value) {
-          var range = node.rawAttrsMap[name];
-          if (name === 'v-for') {
-            checkFor(node, ("v-for=\"" + value + "\""), warn, range);
-          } else if (name === 'v-slot' || name[0] === '#') {
-            checkFunctionParameterExpression(value, (name + "=\"" + value + "\""), warn, range);
-          } else if (onRE.test(name)) {
-            checkEvent(value, (name + "=\"" + value + "\""), warn, range);
-          } else {
-            checkExpression(value, (name + "=\"" + value + "\""), warn, range);
-          }
-        }
-      }
-    }
-    if (node.children) {
-      for (var i = 0; i < node.children.length; i++) {
-        checkNode(node.children[i], warn);
-      }
-    }
-  } else if (node.type === 2) {
-    checkExpression(node.expression, node.text, warn, node);
-  }
-}
-
-function checkEvent(exp, text, warn, range) {
-  var stripped = exp.replace(stripStringRE, '');
-  var keywordMatch = stripped.match(unaryOperatorsRE);
-  if (keywordMatch && stripped.charAt(keywordMatch.index - 1) !== '$') {
-    warn(
-      'avoid using JavaScript unary operator as property name: '
-      + "\"" + (keywordMatch[0]) + "\" in expression " + (text.trim()),
-      range
-    );
-  }
-  checkExpression(exp, text, warn, range);
-}
-
-function checkFor(node, text, warn, range) {
-  checkExpression(node.for || '', text, warn, range);
-  checkIdentifier(node.forItem, 'wx:for item', text, warn, range);
-  checkIdentifier(node.iterator1, 'wx:for iterator', text, warn, range);
-  checkIdentifier(node.iterator2, 'wx:for iterator', text, warn, range);
-}
-
-function checkIdentifier(
-  ident,
-  type,
-  text,
-  warn,
-  range
-) {
-  if (typeof ident === 'string') {
-    try {
-      new Function(("var " + ident + "=_"));
-    } catch (e) {
-      warn(("invalid " + type + " \"" + ident + "\" in expression: " + (text.trim())), range);
-    }
-  }
-}
-
-function checkExpression(exp, text, warn, range) {
-  try {
-    new Function(("return " + exp));
-  } catch (e) {
-    var keywordMatch = exp.replace(stripStringRE, '').match(prohibitedKeywordRE);
-    if (keywordMatch) {
-      warn(
-        'avoid using JavaScript keyword as property name: '
-        + "\"" + (keywordMatch[0]) + "\"\n  Raw expression: " + (text.trim()),
-        range
-      );
-    } else {
-      warn(
-        "invalid expression: " + (e.message) + " in\n\n"
-        + "    " + exp + "\n\n"
-        + "  Raw expression: " + (text.trim()) + "\n",
-        range
-      );
-    }
-  }
-}
-
-function checkFunctionParameterExpression(exp, text, warn, range) {
-  try {
-    new Function(exp, '');
-  } catch (e) {
-    warn(
-      "invalid function parameter expression: " + (e.message) + " in\n\n"
-      + "    " + exp + "\n\n"
-      + "  Raw expression: " + (text.trim()) + "\n",
-      range
-    );
-  }
 }
 
 var ASSET_TYPES = [
@@ -2701,9 +2574,6 @@ function createCompilerCreator(baseCompile) {
       finalOptions.warn = warn;
 
       var compiled = baseCompile(template.trim(), finalOptions);
-      if (process.env.NODE_ENV !== 'production') {
-        detectErrors(compiled.ast, warn);
-      }
       compiled.errors = errors;
       compiled.tips = tips;
       return compiled;
@@ -2782,7 +2652,7 @@ Dep.prototype.notify = function notify () {
 // can be evaluated at a time.
 Dep.target = null;
 
-var VNode = function VNode(tag, data, children, text, elm, context, componentOptions, asyncFactory) {
+var VNode = function VNode(tag, data, children, text, elm, context, componentOptions) {
   this.tag = tag;
   this.data = data;
   this.children = children;
@@ -2803,9 +2673,6 @@ var VNode = function VNode(tag, data, children, text, elm, context, componentOpt
   this.isComment = false;
   this.isCloned = false;
   this.isOnce = false;
-  this.asyncFactory = asyncFactory;
-  this.asyncMeta = undefined;
-  this.isAsyncPlaceholder = false;
 };
 
 var prototypeAccessors = { child: { configurable: true } };

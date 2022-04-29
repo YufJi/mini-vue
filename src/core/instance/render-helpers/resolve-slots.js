@@ -37,5 +37,5 @@ export function resolveSlots(children, context) {
 }
 
 function isWhitespace(node) {
-  return (node.isComment && !node.asyncFactory) || node.text === ' ';
+  return node.isComment || node.text === ' ';
 }

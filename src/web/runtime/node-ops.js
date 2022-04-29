@@ -25,6 +25,10 @@ export function createComment(text) {
   return document.createComment(text);
 }
 
+export function createDocumentFragment() {
+  return document.createDocumentFragment();
+}
+
 export function insertBefore(parentNode, newNode, referenceNode) {
   parentNode.insertBefore(newNode, referenceNode);
 }
@@ -55,4 +59,20 @@ export function setTextContent(node, text) {
 
 export function setStyleScope(node, scopeId) {
   node.setAttribute(scopeId, '');
+}
+
+export function isElement(node) {
+  return node.nodeType === 1;
+}
+
+export function isText(node) {
+  return node.nodeType === 3;
+}
+
+export function isComment(node) {
+  return node.nodeType === 8;
+}
+
+export function isDocumentFragment(node) {
+  return node.nodeType === 11;
 }

@@ -19,7 +19,7 @@ const template = `
     </header>
     <p wx:if="{{message === 'abc'}}">{{ message }}</p>
     <p wx:else>No message.</p>
-    <div hidden="{{hide ? true : false}}" wx:for="{{[zero,1,2,3]}}">{{item}}</div>
+    <div hidden="{{hide}}" wx:for="{{[zero,1,2,3]}}">{{item}}</div>
     <div wx:for="{{list}}" wx:for-index="idx" wx:key="*this"> {{idx}} : {{item}}</div>
 
     <component-a>
@@ -30,10 +30,10 @@ const template = `
       <div slot="abc">global's slot {{slot}}</div>
     </global-a>
 
-    <div>
+    <block wx:for="{{list}}" wx:key="*this"> 
       <span>dsa</span>
       <div>ddsad</div>
-    </div>
+    </block>
   </div>
 `;
 

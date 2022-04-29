@@ -1,5 +1,9 @@
 import KeepAlive from './keep-alive';
+import View from './view';
 
-export default {
-  KeepAlive,
+const components = {
+  [KeepAlive.name]: KeepAlive,
+  [View.name]: View,
 };
+
+export default components;

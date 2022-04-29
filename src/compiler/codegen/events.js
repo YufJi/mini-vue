@@ -1,5 +1,5 @@
-export function genHandlers(events, isNative) {
-  const prefix = isNative ? 'nativeOn:' : 'on:';
+export function genHandlers(events) {
+  const prefix = 'on:';
   let staticHandlers = '';
 
   for (const name in events) {
