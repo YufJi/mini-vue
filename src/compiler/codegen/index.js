@@ -14,6 +14,11 @@ export class CodegenState {
     this.maybeComponent = (el) => !!el.component || !isReservedTag(el.tag);
     this.onceId = 0;
     this.staticRenderFns = [];
+
+    this.header = [];
+    this.importTplDeps = {};
+    this.includeTplDeps = {};
+    this.importIncludeIndex = 1;
   }
 }
 
@@ -25,6 +30,7 @@ export function generate(
   // fix #11483, Root level <script> tags should not be rendered.
   const code = ast ? (ast.tag === 'script' ? 'null' : genElement(ast, state)) : '_c("div")';
   return {
+    header: state.header,
     render: `with(this){ return ${code} }`,
     staticRenderFns: state.staticRenderFns,
   };
@@ -39,24 +45,24 @@ export function genElement(el, state) {
     return genFor(el, state);
   } else if (el.if && !el.ifProcessed) {
     return genIf(el, state);
-  } else if (el.tag === 'template' && !el.slotTarget) {
-    return genChildren(el, state) || 'void 0';
+  } else if (el.tag === 'template') {
+    return genTemplate(el, state);
   } else if (el.tag === 'slot') {
     return genSlot(el, state);
+  } else if (el.tag === 'wxs') {
+    return genWxs(el, state);
   } else {
     // component or element
     let code;
-    if (el.component) {
-      code = genComponent(el.component, el, state);
-    } else {
-      let data;
-      if (!el.plain) {
-        data = genData(el, state);
-      }
+    let data;
 
-      const children = el.inlineTemplate ? null : genChildren(el, state, true);
-      code = `_c('${el.tag}'${data ? `,${data}` : ''}${children ? `,${children}` : ''})`;
+    if (!el.plain) {
+      data = genData(el, state);
     }
+
+    const children = genChildren(el, state, true);
+    code = `_c('${el.tag}'${data ? `,${data}` : ''}${children ? `,${children}` : ''})`;
+
     // module transforms
     for (let i = 0; i < state.transforms.length; i++) {
       code = state.transforms[i](el, code);
@@ -198,13 +204,10 @@ export function genData(el, state) {
 
   // slot target
   // only for non-scoped slots
-  if (el.slotTarget && !el.slotScope) {
+  if (el.slotTarget) {
     data += `slot:${el.slotTarget},`;
   }
-  // scoped slots
-  if (el.scopedSlots) {
-    data += `${genScopedSlots(el, el.scopedSlots, state)},`;
-  }
+
   // component v-model
   if (el.model) {
     data += `model:{value:${
@@ -258,109 +261,6 @@ function genInlineTemplate(el, state) {
       inlineRenderFns.staticRenderFns.map((code) => `function(){${code}}`).join(',')
     }]}`;
   }
-}
-
-function genScopedSlots(
-  el,
-  slots,
-  state,
-) {
-  // by default scoped slots are considered "stable", this allows child
-  // components with only scoped slots to skip forced updates from parent.
-  // but in some cases we have to bail-out of this optimization
-  // for example if the slot contains dynamic names, has v-if or v-for on them...
-  let needsForceUpdate = el.for || Object.keys(slots).some((key) => {
-    const slot = slots[key];
-    return (
-      slot.slotTargetDynamic
-      || slot.if
-      || slot.for
-      || containsSlotChild(slot) // is passing down slot from parent which may be dynamic
-    );
-  });
-
-  // #9534: if a component with scoped slots is inside a conditional branch,
-  // it's possible for the same component to be reused but with different
-  // compiled slot content. To avoid that, we generate a unique key based on
-  // the generated code of all the slot contents.
-  let needsKey = !!el.if;
-
-  // OR when it is inside another scoped slot or v-for (the reactivity may be
-  // disconnected due to the intermediate scope variable)
-  // #9438, #9506
-  // TODO: this can be further optimized by properly analyzing in-scope bindings
-  // and skip force updating ones that do not actually use scope variables.
-  if (!needsForceUpdate) {
-    let { parent } = el;
-    while (parent) {
-      if (
-        (parent.slotScope && parent.slotScope !== emptySlotScopeToken)
-        || parent.for
-      ) {
-        needsForceUpdate = true;
-        break;
-      }
-      if (parent.if) {
-        needsKey = true;
-      }
-      parent = parent.parent;
-    }
-  }
-
-  const generatedSlots = Object.keys(slots)
-    .map((key) => genScopedSlot(slots[key], state))
-    .join(',');
-
-  return `scopedSlots:_u([${generatedSlots}]${
-    needsForceUpdate ? ',null,true' : ''
-  }${
-    !needsForceUpdate && needsKey ? `,null,false,${hash(generatedSlots)}` : ''
-  })`;
-}
-
-function hash(str) {
-  let hash = 5381;
-  let i = str.length;
-  while (i) {
-    hash = (hash * 33) ^ str.charCodeAt(--i);
-  }
-  return hash >>> 0;
-}
-
-function containsSlotChild(el) {
-  if (el.type === 1) {
-    if (el.tag === 'slot') {
-      return true;
-    }
-    return el.children.some(containsSlotChild);
-  }
-  return false;
-}
-
-function genScopedSlot(
-  el,
-  state,
-) {
-  const isLegacySyntax = el.attrsMap['slot-scope'];
-  if (el.if && !el.ifProcessed && !isLegacySyntax) {
-    return genIf(el, state, genScopedSlot, 'null');
-  }
-  if (el.for && !el.forProcessed) {
-    return genFor(el, state, genScopedSlot);
-  }
-  const slotScope = el.slotScope === emptySlotScopeToken
-    ? ''
-    : String(el.slotScope);
-  const fn = `function(${slotScope}){`
-    + `return ${el.tag === 'template'
-      ? el.if && isLegacySyntax
-        ? `(${el.if})?${genChildren(el, state) || 'undefined'}:undefined`
-        : genChildren(el, state) || 'undefined'
-      : genElement(el, state)
-    }}`;
-  // reverse proxy v-slot without scope on this.$slots
-  const reverseProxy = slotScope ? '' : ',proxy:true';
-  return `{key:${el.slotTarget || '"default"'},fn:${fn}${reverseProxy}}`;
 }
 
 export function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
@@ -466,16 +366,15 @@ function genSlot(el, state) {
   return `${res})`;
 }
 
-// componentName is el.component, take it as argument to shun flow's pessimistic refinement
-function genComponent(
-  componentName,
-  el,
-  state,
-) {
-  const children = el.inlineTemplate ? null : genChildren(el, state, true);
-  return `_c(${componentName},${genData(el, state)}${
-    children ? `,${children}` : ''
-  })`;
+function genWxs(el, state) {
+  const { src, module } = el;
+  state.header.push(`const ${module} = require('${src}');`);
+
+  return '_e()';
+}
+
+function genTemplate(el, state) {
+  return '_e()';
 }
 
 function genProps(props) {

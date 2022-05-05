@@ -8,6 +8,11 @@ const spreadReg = /^\.\.\.[\w$_][\w$_\d]*/; // ...abc
 const objReg = /^[\w$_][\w$_\d]*\s*:\s*[\w$_][\w$_\d]*/; // name: abc
 const es2015ObjReg = /^[\w$_][\w$_\d]*/; // abc
 
+function isObject(str) {
+  str = str.trim();
+  return str.match(spreadReg) || str.match(objReg) || str.match(es2015ObjReg);
+}
+
 function escapeString(str) {
   return str.replace(/[\\']/g, '\\$&');
 }
@@ -16,7 +21,7 @@ export function hasExpression(str = '') {
   return str.match(expressionTagReg);
 }
 
-export function transformExpression(str) {
+export function transformExpression(str, forceObject = false) {
   if (!str.match(expressionTagReg)) {
     return `"${str}"`;
   }
@@ -24,7 +29,7 @@ export function transformExpression(str) {
   let match = str.match(fullExpressionTagReg);
 
   if (match) {
-    return match[1];
+    return (forceObject && isObject(match[1])) ? `{${match[1]}}` : match[1];
   }
 
   const totalLength = str.length;

@@ -81,7 +81,6 @@ export function lifecycleMixin(Vue) {
 
     // if parent is an HOC, update its $el as well
     if (vm.$vnode && vm.$parent && vm.$vnode === vm.$parent._vnode) {
-      console.log(11);
       vm.$parent.$el = vm.$el;
     }
     // updated hook is called by the scheduler to ensure that children are
@@ -186,7 +185,8 @@ export function mountComponent(vm, el, hydrating) {
     };
   } else {
     updateComponent = () => {
-      vm._update(vm._render(), hydrating);
+      const vnode = vm._render();
+      vm._update(vnode, hydrating);
     };
   }
 

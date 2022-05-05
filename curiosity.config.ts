@@ -6,7 +6,7 @@ export default (env): IConfig => {
 
   return {
     entry: {
-      index: path.join(__dirname, 'src/index.js'),
+      index: path.join(__dirname, 'demo/index.js'),
     },
     html: {
       index: {
@@ -17,6 +17,7 @@ export default (env): IConfig => {
     outputPath: path.join(__dirname, 'dist'),
     publicPath,
     alias: {
+      '@': path.resolve(__dirname, 'src'),
       compiler: path.resolve(__dirname, 'src/compiler'),
       core: path.resolve(__dirname, 'src/core'),
       shared: path.resolve(__dirname, 'src/shared'),
@@ -28,6 +29,16 @@ export default (env): IConfig => {
     ],
     webpack(config) {
       config.stats = 'minimal';
+
+      config.resolveLoader.modules.push(path.resolve(__dirname, 'loaders'));
+
+      config.module.rules.push({
+        test: /\.wxml$/,
+        loader: 'wxml-loader',
+      }, {
+        test: /\.wxs$/,
+        loader: 'babel-loader',
+      });
     },
     devServer: {
       port: 8088,

@@ -66,7 +66,7 @@ export function renderMixin(Vue) {
 
   Vue.prototype._render = function () {
     const vm = this;
-    const { render, _parentVnode } = vm.$options;
+    const { render, _parentVnode, name, _componentTag } = vm.$options;
 
     if (_parentVnode) {
       vm.$scopedSlots = normalizeScopedSlots(
@@ -86,7 +86,8 @@ export function renderMixin(Vue) {
       // separately from one another. Nested component's render fns are called
       // when parent component is patched.
       currentRenderingInstance = vm;
-      vnode = render.call(vm._renderProxy, vm.$createElement);
+
+      vnode = new VNode(name || _componentTag, {}, render.call(vm._renderProxy, vm.$createElement), undefined, undefined, vm);
     } catch (e) {
       handleError(e, vm, 'render');
       // return error render result,

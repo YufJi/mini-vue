@@ -82,10 +82,6 @@ export function createPatchFunction(backend) {
     return new VNode(nodeOps.tagName(elm).toLowerCase(), {}, [], undefined, elm);
   }
 
-  function emptyDocumentFragmentAt(fragment) {
-    return new VNode('fragment', {}, [], undefined, fragment);
-  }
-
   function createRmCb(childElm, listeners) {
     function remove() {
       if (--remove.listeners === 0) {
@@ -182,6 +178,7 @@ export function createPatchFunction(backend) {
     let i = vnode.data;
     if (isDef(i)) {
       const isReactivated = isDef(vnode.componentInstance) && i.keepAlive;
+
       if (isDef(i = i.hook) && isDef(i = i.init)) {
         i(vnode, false /* hydrating */);
       }
@@ -192,7 +189,6 @@ export function createPatchFunction(backend) {
       if (isDef(vnode.componentInstance)) {
         initComponent(vnode, insertedVnodeQueue);
 
-        // insert(vnode.elm, vnode.componentInstance.$el);
         insert(parentElm, vnode.elm, refElm);
 
         if (isTrue(isReactivated)) {
@@ -211,8 +207,6 @@ export function createPatchFunction(backend) {
     }
 
     vnode.elm = vnode.componentInstance.$el;
-    // vnode.elm.setAttribute('name', vnode.tag);
-    // vnode.elm = nodeOps.createElement(vnode.tag, vnode);
 
     if (isPatchable(vnode)) {
       invokeCreateHooks(vnode, insertedVnodeQueue);

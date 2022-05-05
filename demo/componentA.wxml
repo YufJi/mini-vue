@@ -1,0 +1,10 @@
+
+<header>
+  <h1>I'm a template!</h1>
+</header>
+<p v-if="message">{{ message }}</p>
+<p v-else>No message.</p>
+
+<span bindclick="fn1">i am com A {{message}}</span>
+
+<slot name="abc"></slot>

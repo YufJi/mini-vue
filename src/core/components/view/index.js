@@ -6,6 +6,6 @@ export default {
   render(h) {
     const slot = this.$slots.default;
 
-    return h('div', {}, slot);
+    return h('fragment', {}, slot);
   },
 };

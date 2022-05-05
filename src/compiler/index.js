@@ -22,5 +22,6 @@ export const createCompiler = createCompilerCreator((template, options) => {
     ast,
     render: code.render,
     staticRenderFns: code.staticRenderFns,
+    header: code.header,
   };
 });

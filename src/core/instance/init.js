@@ -84,7 +84,6 @@ export function initInternalComponent(vm, options) {
   opts._renderChildren = vnodeComponentOptions.children;
   opts._componentTag = vnodeComponentOptions.tag;
 
-  // inline-template带过来的
   if (options.render) {
     opts.render = options.render;
     opts.staticRenderFns = options.staticRenderFns;

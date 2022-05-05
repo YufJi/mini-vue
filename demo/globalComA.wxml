@@ -1,0 +1,5 @@
+<tiny-view>
+  <span>i am global com A</span>
+
+  <slot name="abc" wx:for="{{[1,2]}}" ></slot>
+</tiny-view>

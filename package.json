@@ -24,6 +24,7 @@
     "rollup-plugin-flow-no-whitespace": "^1.0.0",
     "rollup-plugin-node-resolve": "^4.0.0",
     "rollup-plugin-replace": "^2.0.0",
+    "vue-template-es2015-compiler": "^1.9.1",
     "wxml-transpiler": "^1.0.5",
     "wxss-transpiler": "^1.0.6"
   },

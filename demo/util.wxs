@@ -1,0 +1,3 @@
+exports.sing = function () {
+  console.log('sing');
+};

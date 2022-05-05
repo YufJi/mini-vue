@@ -2,7 +2,6 @@ import he from 'he';
 import { extend, cached, no, camelize, hyphenate } from 'shared/util';
 import { isEdge } from 'core/util/env';
 
-// import { genAssignmentCode } from '../directives/model';
 import {
   addProp,
   addAttr,
@@ -17,16 +16,9 @@ import { parseText } from './text-parser';
 import { hasExpression, transformExpression } from './expression';
 
 export const onRE = /^@|^v-on:/;
-
-const argRE = /:(.*)$/;
-export const bindRE = /^:|^\.|^v-bind:/;
-const modifierRE = /\.[^.\]]+(?=[^\]]*$)/g;
-
 const lineBreakRE = /[\r\n]/;
 const whitespaceRE = /[ \f\t\r\n]+/g;
-
 const invalidAttributeRE = /[\s"'<>\/=]/;
-
 const variableRE = /^[$\w]+$/;
 const forKeyRE = /^[\w.$]+$/;
 const eventRE = /^(capture-)?(bind|catch):?([A-Za-z_]+)$/;
@@ -38,7 +30,6 @@ export const emptySlotScopeToken = '_empty_';
 // configurable state
 export let warn;
 
-let delimiters;
 let transforms;
 let preTransforms;
 let postTransforms;
@@ -72,10 +63,6 @@ export function parse(template, options) {
   transforms = pluckModuleFunction(options.modules, 'transformNode');
   postTransforms = pluckModuleFunction(options.modules, 'postTransformNode');
 
-  delimiters = options.delimiters;
-
-  // 头部引用相关
-  const header = [];
   const stack = [];
   const preserveWhitespace = options.preserveWhitespace !== false;
   const whitespaceOption = options.whitespace;
@@ -117,25 +104,16 @@ export function parse(template, options) {
         );
       }
     }
+
     if (currentParent && !element.forbidden) {
       if (element.elseif || element.else) {
         processIfConditions(element, currentParent);
       } else {
-        if (element.slotScope) {
-          // scoped slot
-          // keep it in the children list so that v-else(-if) conditions can
-          // find it as the prev node.
-          const name = element.slotTarget || '"default"';
-          (currentParent.scopedSlots || (currentParent.scopedSlots = {}))[name] = element;
-        }
         currentParent.children.push(element);
         element.parent = currentParent;
       }
     }
 
-    // final children cleanup
-    // filter out scoped slots
-    element.children = element.children.filter((c) => !(c).slotScope);
     // remove trailing whitespace node again
     trimEndingWhitespace(element);
 
@@ -371,19 +349,23 @@ export function processElement(element, options) {
   // removing structural attributes
   element.plain = (
     !element.key
-    && !element.scopedSlots
     && !element.attrsList.length
   );
 
   processBlock(element);
   processSlotContent(element);
   processSlotOutlet(element);
-  processComponent(element);
+  processWxs(element);
+  processImport(element);
+  processInclude(element);
+  processTemplate(element);
+
   // apply transforms
   for (let i = 0; i < transforms.length; i++) {
     element = transforms[i](element, options) || element;
   }
   processAttrs(element);
+
   return element;
 }
 
@@ -504,38 +486,8 @@ export function addIfCondition(el, condition) {
 }
 
 // handle content being passed to a component as slot,
-// e.g. <template slot="xxx">, <div slot-scope="xxx">
+// e.g. <div slot="xxx">
 function processSlotContent(el) {
-  let slotScope;
-  if (el.tag === 'template') {
-    slotScope = getAndRemoveAttr(el, 'scope');
-    /* istanbul ignore if */
-    if (process.env.NODE_ENV !== 'production' && slotScope) {
-      warn(
-        'the "scope" attribute for scoped slots have been deprecated and '
-        + 'replaced by "slot-scope" since 2.5. The new "slot-scope" attribute '
-        + 'can also be used on plain elements in addition to <template> to '
-        + 'denote scoped slots.',
-        el.rawAttrsMap.scope,
-        true,
-      );
-    }
-    el.slotScope = slotScope || getAndRemoveAttr(el, 'slot-scope');
-  } else if ((slotScope = getAndRemoveAttr(el, 'slot-scope'))) {
-    /* istanbul ignore if */
-    if (process.env.NODE_ENV !== 'production' && el.attrsMap['v-for']) {
-      warn(
-        `Ambiguous combined usage of slot-scope and v-for on <${el.tag}> `
-        + '(v-for takes higher priority). Use a wrapper <template> for the '
-        + 'scoped slot to make it clearer.',
-        el.rawAttrsMap['slot-scope'],
-        true,
-      );
-    }
-    el.slotScope = slotScope;
-  }
-
-  // slot="xxx"
   const exp = getAndRemoveAttr(el, 'slot');
   if (exp) {
     const slotTarget = transformExpression(exp);
@@ -547,9 +499,7 @@ function processSlotContent(el) {
 
     // preserve slot as an attribute for native shadow DOM compat
     // only for non-scoped slots.
-    if (el.tag !== 'template' && !el.slotScope) {
-      addAttr(el, 'slot', slotTarget, getRawBindingAttr(el, 'slot'));
-    }
+    addAttr(el, 'slot', slotTarget, getRawBindingAttr(el, 'slot'));
   }
 }
 
@@ -577,13 +527,43 @@ function processBlock(el) {
   }
 }
 
-function processComponent(el) {
-  let exp;
-  if ((exp = getAndRemoveAttr(el, 'is'))) {
-    el.component = exp;
+function processWxs(el) {
+  if (el.tag === 'wxs') {
+    const wxsSrc = getAndRemoveAttr(el, 'src');
+    const wxsModule = getAndRemoveAttr(el, 'module');
+
+    if (wxsSrc && wxsModule) {
+      el.src = wxsSrc;
+      el.module = wxsModule;
+    } else {
+      warn('"src" and "module" expected in wxs tag');
+    }
   }
-  if (getAndRemoveAttr(el, 'inline-template') != null) {
-    el.inlineTemplate = true;
+}
+
+function processImport(el) {
+  if (el.tag === 'import') {
+    const importSrc = getAndRemoveAttr(el, 'src');
+    el.src = importSrc;
+  }
+}
+
+function processInclude(el) {
+  if (el.tag === 'include') {
+    const includeSrc = getAndRemoveAttr(el, 'src');
+    el.src = includeSrc;
+  }
+}
+
+function processTemplate(el) {
+  if (el.tag === 'template') {
+    let exp;
+    if ((exp = getAndRemoveAttr(el, 'is'))) {
+      el.templateIs = exp;
+      el.templateData = transformExpression(getAndRemoveAttr(el, 'data'), true);
+    } else {
+      el.templateDefine = getAndRemoveAttr(el, 'name');
+    }
   }
 }
 
@@ -615,10 +595,10 @@ function processAttrs(el) {
       if (stop) {
         modifiers.stop = stop;
       }
-
       if (capture) {
         modifiers.capture = capture;
       }
+
       addHandler(el, eventName, transformExpression(value), modifiers, false, warn, list[i]);
     } else {
       addAttr(el, name, transformExpression(value), list[i]);

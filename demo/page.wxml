@@ -1,0 +1,31 @@
+<wxs src="./util.wxs" module="utils" />
+<!-- <import src="./a.wxml" />
+<include src="./b.wxml" />
+
+<template is="template-a" data="{{ a, ...spread, b: 'x' }}"></template>
+
+<template name="template-c">
+  <view>template b</view>
+</template> -->
+
+<header class="abc-{{name}} sad" style="color: {{color}}; font-size: 12px" catch:click="{{fn}}1">
+  <h1 bind:click="fn2">I'm a template!</h1>
+</header>
+<p wx:if="{{message === 'abc'}}">{{ message }}</p>
+<p wx:else>No message.</p>
+<tiny-view hidden="{{hide}}" wx:for="{{[zero,1,2,3]}}">{{item}}</tiny-view>
+<tiny-view wx:for="{{list}}" wx:for-index="idx" wx:key="*this"> {{idx}} : {{item}}</tiny-view>
+
+<component-a class="component-a" bindclick="{{utils.sing}}">
+  <tiny-view slot="abc">a's slot {{slot}}</tiny-view>
+</component-a>
+
+<global-a>
+  <tiny-view slot="abc">global's slot {{slot}}</tiny-view>
+</global-a>
+
+<block wx:for="{{list}}" wx:key="*this"> 
+  <tiny-view>dsa</tiny-view>
+  <tiny-view>ddsad</tiny-view>
+  <tiny-view>{{item}}</tiny-view>
+</block>

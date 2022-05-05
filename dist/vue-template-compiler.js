@@ -83,7 +83,7 @@ function makeMap(str, expectsLowerCase) {
 /**
  * Check if a tag is a built-in tag.
  */
-var isBuiltInTag = makeMap('slot,component', true);
+var isBuiltInTag = makeMap('slot', true);
 
 /**
  * Check if an attribute is a reserved attribute.
@@ -911,6 +911,15 @@ function parseText(text) {
 var fullExpressionTagReg = /^\{\{([^`{}]+)\}\}$/;
 var expressionTagReg = /\{\{([^`{}]+)\}\}/g;
 
+var spreadReg = /^\.\.\.[\w$_][\w$_\d]*/; // ...abc
+var objReg = /^[\w$_][\w$_\d]*\s*:\s*[\w$_][\w$_\d]*/; // name: abc
+var es2015ObjReg = /^[\w$_][\w$_\d]*/; // abc
+
+function isObject$1(str) {
+  str = str.trim();
+  return str.match(spreadReg) || str.match(objReg) || str.match(es2015ObjReg);
+}
+
 function escapeString(str) {
   return str.replace(/[\\']/g, '\\$&');
 }
@@ -921,7 +930,9 @@ function hasExpression(str) {
   return str.match(expressionTagReg);
 }
 
-function transformExpression(str) {
+function transformExpression(str, forceObject) {
+  if ( forceObject === void 0 ) forceObject = false;
+
   if (!str.match(expressionTagReg)) {
     return ("\"" + str + "\"");
   }
@@ -929,7 +940,7 @@ function transformExpression(str) {
   var match = str.match(fullExpressionTagReg);
 
   if (match) {
-    return match[1];
+    return (forceObject && isObject$1(match[1])) ? ("{" + (match[1]) + "}") : match[1];
   }
 
   var totalLength = str.length;
@@ -956,21 +967,16 @@ function transformExpression(str) {
 
 var lineBreakRE = /[\r\n]/;
 var whitespaceRE = /[ \f\t\r\n]+/g;
-
 var invalidAttributeRE = /[\s"'<>\/=]/;
-
 var variableRE = /^[$\w]+$/;
 var forKeyRE = /^[\w.$]+$/;
 var eventRE = /^(capture-)?(bind|catch):?([A-Za-z_]+)$/;
 
 var decodeHTMLCached = cached(he.decode);
 
-var emptySlotScopeToken = '_empty_';
-
 // configurable state
 var warn;
 
-var delimiters;
 var transforms;
 var preTransforms;
 var postTransforms;
@@ -1004,7 +1010,6 @@ function parse(template, options) {
   transforms = pluckModuleFunction(options.modules, 'transformNode');
   postTransforms = pluckModuleFunction(options.modules, 'postTransformNode');
 
-  delimiters = options.delimiters;
   var stack = [];
   var preserveWhitespace = options.preserveWhitespace !== false;
   var whitespaceOption = options.whitespace;
@@ -1046,25 +1051,16 @@ function parse(template, options) {
         );
       }
     }
+
     if (currentParent && !element.forbidden) {
       if (element.elseif || element.else) {
         processIfConditions(element, currentParent);
       } else {
-        if (element.slotScope) {
-          // scoped slot
-          // keep it in the children list so that v-else(-if) conditions can
-          // find it as the prev node.
-          var name = element.slotTarget || '"default"';
-          (currentParent.scopedSlots || (currentParent.scopedSlots = {}))[name] = element;
-        }
         currentParent.children.push(element);
         element.parent = currentParent;
       }
     }
 
-    // final children cleanup
-    // filter out scoped slots
-    element.children = element.children.filter(function (c) { return !(c).slotScope; });
     // remove trailing whitespace node again
     trimEndingWhitespace(element);
 
@@ -1301,19 +1297,23 @@ function processElement(element, options) {
   // removing structural attributes
   element.plain = (
     !element.key
-    && !element.scopedSlots
     && !element.attrsList.length
   );
 
   processBlock(element);
   processSlotContent(element);
   processSlotOutlet(element);
-  processComponent(element);
+  processWxs(element);
+  processImport(element);
+  processInclude(element);
+  processTemplate(element);
+
   // apply transforms
   for (var i = 0; i < transforms.length; i++) {
     element = transforms[i](element, options) || element;
   }
   processAttrs(element);
+
   return element;
 }
 
@@ -1434,38 +1434,8 @@ function addIfCondition(el, condition) {
 }
 
 // handle content being passed to a component as slot,
-// e.g. <template slot="xxx">, <div slot-scope="xxx">
+// e.g. <div slot="xxx">
 function processSlotContent(el) {
-  var slotScope;
-  if (el.tag === 'template') {
-    slotScope = getAndRemoveAttr(el, 'scope');
-    /* istanbul ignore if */
-    if (process.env.NODE_ENV !== 'production' && slotScope) {
-      warn(
-        'the "scope" attribute for scoped slots have been deprecated and '
-        + 'replaced by "slot-scope" since 2.5. The new "slot-scope" attribute '
-        + 'can also be used on plain elements in addition to <template> to '
-        + 'denote scoped slots.',
-        el.rawAttrsMap.scope,
-        true
-      );
-    }
-    el.slotScope = slotScope || getAndRemoveAttr(el, 'slot-scope');
-  } else if ((slotScope = getAndRemoveAttr(el, 'slot-scope'))) {
-    /* istanbul ignore if */
-    if (process.env.NODE_ENV !== 'production' && el.attrsMap['v-for']) {
-      warn(
-        "Ambiguous combined usage of slot-scope and v-for on <" + (el.tag) + "> "
-        + '(v-for takes higher priority). Use a wrapper <template> for the '
-        + 'scoped slot to make it clearer.',
-        el.rawAttrsMap['slot-scope'],
-        true
-      );
-    }
-    el.slotScope = slotScope;
-  }
-
-  // slot="xxx"
   var exp = getAndRemoveAttr(el, 'slot');
   if (exp) {
     var slotTarget = transformExpression(exp);
@@ -1477,9 +1447,7 @@ function processSlotContent(el) {
 
     // preserve slot as an attribute for native shadow DOM compat
     // only for non-scoped slots.
-    if (el.tag !== 'template' && !el.slotScope) {
-      addAttr(el, 'slot', slotTarget, getRawBindingAttr(el, 'slot'));
-    }
+    addAttr(el, 'slot', slotTarget, getRawBindingAttr(el, 'slot'));
   }
 }
 
@@ -1507,13 +1475,43 @@ function processBlock(el) {
   }
 }
 
-function processComponent(el) {
-  var exp;
-  if ((exp = getAndRemoveAttr(el, 'is'))) {
-    el.component = exp;
+function processWxs(el) {
+  if (el.tag === 'wxs') {
+    var wxsSrc = getAndRemoveAttr(el, 'src');
+    var wxsModule = getAndRemoveAttr(el, 'module');
+
+    if (wxsSrc && wxsModule) {
+      el.src = wxsSrc;
+      el.module = wxsModule;
+    } else {
+      warn('"src" and "module" expected in wxs tag');
+    }
   }
-  if (getAndRemoveAttr(el, 'inline-template') != null) {
-    el.inlineTemplate = true;
+}
+
+function processImport(el) {
+  if (el.tag === 'import') {
+    var importSrc = getAndRemoveAttr(el, 'src');
+    el.src = importSrc;
+  }
+}
+
+function processInclude(el) {
+  if (el.tag === 'include') {
+    var includeSrc = getAndRemoveAttr(el, 'src');
+    el.src = includeSrc;
+  }
+}
+
+function processTemplate(el) {
+  if (el.tag === 'template') {
+    var exp;
+    if ((exp = getAndRemoveAttr(el, 'is'))) {
+      el.templateIs = exp;
+      el.templateData = transformExpression(getAndRemoveAttr(el, 'data'), true);
+    } else {
+      el.templateDefine = getAndRemoveAttr(el, 'name');
+    }
   }
 }
 
@@ -1544,10 +1542,10 @@ function processAttrs(el) {
       if (stop) {
         modifiers.stop = stop;
       }
-
       if (capture) {
         modifiers.capture = capture;
       }
+
       addHandler(el, eventName, transformExpression(value), modifiers, false, warn, list[i]);
     } else {
       addAttr(el, name, transformExpression(value), list[i]);
@@ -1625,6 +1623,7 @@ function genStaticKeys$1(keys) {
 
 function markStatic(node) {
   node.static = isStatic(node);
+
   if (node.type === 1) {
     // do not make component slot content static. this avoids
     // 1. components not able to mutate slot nodes
@@ -1695,14 +1694,14 @@ function isStatic(node) {
     return true;
   }
 
-  return !!(node.pre || (
+  return !!((
     !node.hasBindings // no dynamic bindings
     && !node.if && !node.for // not v-if or v-for or v-else
     && !isBuiltInTag(node.tag) // not a built-in
     && isPlatformReservedTag(node.tag) // not a component
     && !isDirectChildOfTemplateFor(node)
     && Object.keys(node).every(isStaticKey)
-  ));
+  ) || node.pre);
 }
 
 function isDirectChildOfTemplateFor(node) {
@@ -1753,6 +1752,11 @@ var CodegenState = function CodegenState(options) {
   this.maybeComponent = function (el) { return !!el.component || !isReservedTag(el.tag); };
   this.onceId = 0;
   this.staticRenderFns = [];
+
+  this.header = [];
+  this.importTplDeps = {};
+  this.includeTplDeps = {};
+  this.importIncludeIndex = 1;
 };
 
 function generate(
@@ -1763,6 +1767,7 @@ function generate(
   // fix #11483, Root level <script> tags should not be rendered.
   var code = ast ? (ast.tag === 'script' ? 'null' : genElement(ast, state)) : '_c("div")';
   return {
+    header: state.header,
     render: ("with(this){ return " + code + " }"),
     staticRenderFns: state.staticRenderFns,
   };
@@ -1777,24 +1782,24 @@ function genElement(el, state) {
     return genFor(el, state);
   } else if (el.if && !el.ifProcessed) {
     return genIf(el, state);
-  } else if (el.tag === 'template' && !el.slotTarget) {
-    return genChildren(el, state) || 'void 0';
+  } else if (el.tag === 'template') {
+    return genTemplate();
   } else if (el.tag === 'slot') {
     return genSlot(el, state);
+  } else if (el.tag === 'wxs') {
+    return genWxs(el, state);
   } else {
     // component or element
     var code;
-    if (el.component) {
-      code = genComponent(el.component, el, state);
-    } else {
-      var data;
-      if (!el.plain) {
-        data = genData(el, state);
-      }
+    var data;
 
-      var children = el.inlineTemplate ? null : genChildren(el, state, true);
-      code = "_c('" + (el.tag) + "'" + (data ? ("," + data) : '') + (children ? ("," + children) : '') + ")";
+    if (!el.plain) {
+      data = genData(el, state);
     }
+
+    var children = genChildren(el, state, true);
+    code = "_c('" + (el.tag) + "'" + (data ? ("," + data) : '') + (children ? ("," + children) : '') + ")";
+
     // module transforms
     for (var i = 0; i < state.transforms.length; i++) {
       code = state.transforms[i](el, code);
@@ -1933,13 +1938,10 @@ function genData(el, state) {
 
   // slot target
   // only for non-scoped slots
-  if (el.slotTarget && !el.slotScope) {
+  if (el.slotTarget) {
     data += "slot:" + (el.slotTarget) + ",";
   }
-  // scoped slots
-  if (el.scopedSlots) {
-    data += (genScopedSlots(el, el.scopedSlots, state)) + ",";
-  }
+
   // component v-model
   if (el.model) {
     data += "model:{value:" + (el.model.value) + ",callback:" + (el.model.callback) + ",expression:" + (el.model.expression) + "},";
@@ -1983,104 +1985,6 @@ function genInlineTemplate(el, state) {
     var inlineRenderFns = generate(ast, state.options);
     return ("inlineTemplate:{render:function(){" + (inlineRenderFns.render) + "},staticRenderFns:[" + (inlineRenderFns.staticRenderFns.map(function (code) { return ("function(){" + code + "}"); }).join(',')) + "]}");
   }
-}
-
-function genScopedSlots(
-  el,
-  slots,
-  state
-) {
-  // by default scoped slots are considered "stable", this allows child
-  // components with only scoped slots to skip forced updates from parent.
-  // but in some cases we have to bail-out of this optimization
-  // for example if the slot contains dynamic names, has v-if or v-for on them...
-  var needsForceUpdate = el.for || Object.keys(slots).some(function (key) {
-    var slot = slots[key];
-    return (
-      slot.slotTargetDynamic
-      || slot.if
-      || slot.for
-      || containsSlotChild(slot) // is passing down slot from parent which may be dynamic
-    );
-  });
-
-  // #9534: if a component with scoped slots is inside a conditional branch,
-  // it's possible for the same component to be reused but with different
-  // compiled slot content. To avoid that, we generate a unique key based on
-  // the generated code of all the slot contents.
-  var needsKey = !!el.if;
-
-  // OR when it is inside another scoped slot or v-for (the reactivity may be
-  // disconnected due to the intermediate scope variable)
-  // #9438, #9506
-  // TODO: this can be further optimized by properly analyzing in-scope bindings
-  // and skip force updating ones that do not actually use scope variables.
-  if (!needsForceUpdate) {
-    var parent = el.parent;
-    while (parent) {
-      if (
-        (parent.slotScope && parent.slotScope !== emptySlotScopeToken)
-        || parent.for
-      ) {
-        needsForceUpdate = true;
-        break;
-      }
-      if (parent.if) {
-        needsKey = true;
-      }
-      parent = parent.parent;
-    }
-  }
-
-  var generatedSlots = Object.keys(slots)
-    .map(function (key) { return genScopedSlot(slots[key], state); })
-    .join(',');
-
-  return ("scopedSlots:_u([" + generatedSlots + "]" + (needsForceUpdate ? ',null,true' : '') + (!needsForceUpdate && needsKey ? (",null,false," + (hash(generatedSlots))) : '') + ")");
-}
-
-function hash(str) {
-  var hash = 5381;
-  var i = str.length;
-  while (i) {
-    hash = (hash * 33) ^ str.charCodeAt(--i);
-  }
-  return hash >>> 0;
-}
-
-function containsSlotChild(el) {
-  if (el.type === 1) {
-    if (el.tag === 'slot') {
-      return true;
-    }
-    return el.children.some(containsSlotChild);
-  }
-  return false;
-}
-
-function genScopedSlot(
-  el,
-  state
-) {
-  var isLegacySyntax = el.attrsMap['slot-scope'];
-  if (el.if && !el.ifProcessed && !isLegacySyntax) {
-    return genIf(el, state, genScopedSlot, 'null');
-  }
-  if (el.for && !el.forProcessed) {
-    return genFor(el, state, genScopedSlot);
-  }
-  var slotScope = el.slotScope === emptySlotScopeToken
-    ? ''
-    : String(el.slotScope);
-  var fn = "function(" + slotScope + "){"
-    + "return " + (el.tag === 'template'
-      ? el.if && isLegacySyntax
-        ? ("(" + (el.if) + ")?" + (genChildren(el, state) || 'undefined') + ":undefined")
-        : genChildren(el, state) || 'undefined'
-      : genElement(el, state)) + "}";
-  // reverse proxy v-slot without scope on this.$slots
-  var reverseProxy = slotScope ? '' : ',proxy:true';
-  return ("{key:" + (el.slotTarget || '"default"') + ",fn:" + fn + reverseProxy + "}");
 }
 
 function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
@@ -2183,14 +2087,16 @@ function genSlot(el, state) {
   return (res + ")");
 }
 
-// componentName is el.component, take it as argument to shun flow's pessimistic refinement
-function genComponent(
-  componentName,
-  el,
-  state
-) {
-  var children = el.inlineTemplate ? null : genChildren(el, state, true);
-  return ("_c(" + componentName + "," + (genData(el, state)) + (children ? ("," + children) : '') + ")");
+function genWxs(el, state) {
+  var src = el.src;
+  var module = el.module;
+  state.header.push(("const " + module + " = require('" + src + "');"));
+
+  return '_e()';
+}
+
+function genTemplate(el, state) {
+  return '_e()';
 }
 
 function genProps(props) {
@@ -2605,6 +2511,7 @@ var createCompiler = createCompilerCreator(function (template, options) {
     ast: ast,
     render: code.render,
     staticRenderFns: code.staticRenderFns,
+    header: code.header,
   };
 });
 
@@ -3248,7 +3155,7 @@ var isBooleanAttr = makeMap(
 );
 
 var isHTMLTag = makeMap(
-  'html,body,base,head,link,meta,style,title,'
+  'html,body,base,head,link,meta,style,title,fragment,'
   + 'address,article,aside,footer,header,h1,h2,h3,h4,h5,h6,hgroup,nav,section,'
   + 'div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,'
   + 'a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,rtc,ruby,'

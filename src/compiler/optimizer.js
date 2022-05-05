@@ -34,6 +34,7 @@ function genStaticKeys(keys) {
 
 function markStatic(node) {
   node.static = isStatic(node);
+
   if (node.type === 1) {
     // do not make component slot content static. this avoids
     // 1. components not able to mutate slot nodes
@@ -103,14 +104,14 @@ function isStatic(node) {
     return true;
   }
 
-  return !!(node.pre || (
+  return !!((
     !node.hasBindings // no dynamic bindings
     && !node.if && !node.for // not v-if or v-for or v-else
     && !isBuiltInTag(node.tag) // not a built-in
     && isPlatformReservedTag(node.tag) // not a component
     && !isDirectChildOfTemplateFor(node)
     && Object.keys(node).every(isStaticKey)
-  ));
+  ) || node.pre);
 }
 
 function isDirectChildOfTemplateFor(node) {
