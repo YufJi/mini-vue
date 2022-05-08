@@ -19,10 +19,6 @@ export function initAssetRegisters(Vue) {
           definition.name = definition.name || id;
           definition = this.options._base.extend(definition);
         }
-        // 定义指令
-        if (type === 'directive' && typeof definition === 'function') {
-          definition = { bind: definition, update: definition };
-        }
 
         this.options[`${type}s`][id] = definition;
 

@@ -12,16 +12,14 @@ export function pluckModuleFunction(modules, key) {
     : [];
 }
 
-export function addProp(el, name, value, range, dynamic) {
-  (el.props || (el.props = [])).push(rangeSetItem({ name, value, dynamic }, range));
+export function addProp(el, name, value, range) {
+  (el.props || (el.props = [])).push(rangeSetItem({ name, value }, range));
   el.plain = false;
 }
 
-export function addAttr(el, name, value, range, dynamic) {
-  const attrs = dynamic
-    ? (el.dynamicAttrs || (el.dynamicAttrs = []))
-    : (el.attrs || (el.attrs = []));
-  attrs.push(rangeSetItem({ name, value, dynamic }, range));
+export function addAttr(el, name, value, range) {
+  const attrs = (el.attrs || (el.attrs = []));
+  attrs.push(rangeSetItem({ name, value }, range));
   el.plain = false;
 }
 
@@ -31,34 +29,11 @@ export function addRawAttr(el, name, value, range) {
   el.attrsList.push(rangeSetItem({ name, value }, range));
 }
 
-export function addDirective(
-  el,
-  name,
-  rawName,
-  value,
-  arg,
-  isDynamicArg,
-  modifiers,
-  range,
-) {
-  (el.directives || (el.directives = [])).push(rangeSetItem({
-    name,
-    rawName,
-    value,
-    arg,
-    isDynamicArg,
-    modifiers,
-  }, range));
-  el.plain = false;
+function prependModifierMarker(symbol, name) {
+  return symbol + name; // mark the event as captured
 }
 
-function prependModifierMarker(symbol, name, dynamic) {
-  return dynamic
-    ? `_p(${name},"${symbol}")`
-    : symbol + name; // mark the event as captured
-}
-
-export function addHandler(el, name, value, modifiers, important, warn, range, dynamic) {
+export function addHandler(el, name, value, modifiers, important, warn, range) {
   modifiers = modifiers || emptyObject;
   // warn prevent and passive modifier
   /* istanbul ignore if */
@@ -70,42 +45,25 @@ export function addHandler(el, name, value, modifiers, important, warn, range, d
     );
   }
 
-  // normalize click.right and click.middle since they don't actually fire
-  // this is technically browser-specific, but at least for now browsers are
-  // the only target envs that have right/middle clicks.
-  if (modifiers.right) {
-    if (dynamic) {
-      name = `(${name})==='click'?'contextmenu':(${name})`;
-    } else if (name === 'click') {
-      name = 'contextmenu';
-      delete modifiers.right;
-    }
-  } else if (modifiers.middle) {
-    if (dynamic) {
-      name = `(${name})==='click'?'mouseup':(${name})`;
-    } else if (name === 'click') {
-      name = 'mouseup';
-    }
-  }
-
   // check capture modifier
   if (modifiers.capture) {
     delete modifiers.capture;
-    name = prependModifierMarker('!', name, dynamic);
+    name = prependModifierMarker('!', name);
   }
+
   if (modifiers.once) {
     delete modifiers.once;
-    name = prependModifierMarker('~', name, dynamic);
+    name = prependModifierMarker('~', name);
   }
   /* istanbul ignore if */
   if (modifiers.passive) {
     delete modifiers.passive;
-    name = prependModifierMarker('&', name, dynamic);
+    name = prependModifierMarker('&', name);
   }
 
   const events = el.events || (el.events = {});
 
-  const newHandler = rangeSetItem({ value: value.trim(), dynamic }, range);
+  const newHandler = rangeSetItem({ value: value.trim() }, range);
   if (modifiers !== emptyObject) {
     newHandler.modifiers = modifiers;
   }
@@ -124,7 +82,7 @@ export function addHandler(el, name, value, modifiers, important, warn, range, d
 }
 
 export function getRawBindingAttr(el, name) {
-  return el.rawAttrsMap[`:${name}`] || el.rawAttrsMap[`v-bind:${name}`] || el.rawAttrsMap[name];
+  return el.rawAttrsMap[name];
 }
 
 // note: this only removes the attr from the Array (attrsList) so that it
@@ -146,17 +104,6 @@ export function getAndRemoveAttr(el, name, removeFromMap) {
     delete el.attrsMap[name];
   }
   return val;
-}
-
-export function getAndRemoveAttrByRegex(el, name) {
-  const list = el.attrsList;
-  for (let i = 0, l = list.length; i < l; i++) {
-    const attr = list[i];
-    if (name.test(attr.name)) {
-      list.splice(i, 1);
-      return attr;
-    }
-  }
 }
 
 function rangeSetItem(item, range) {

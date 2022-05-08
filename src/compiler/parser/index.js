@@ -12,16 +12,14 @@ import {
   pluckModuleFunction,
 } from '../helpers';
 import { parseHTML } from './html-parser';
-import { parseText } from './text-parser';
-import { hasExpression, transformExpression } from './expression';
+import { hasExpression } from './expression-parser';
 
-export const onRE = /^@|^v-on:/;
 const lineBreakRE = /[\r\n]/;
 const whitespaceRE = /[ \f\t\r\n]+/g;
 const invalidAttributeRE = /[\s"'<>\/=]/;
 const variableRE = /^[$\w]+$/;
 const forKeyRE = /^[\w.$]+$/;
-const eventRE = /^(capture-)?(bind|catch):?([A-Za-z_]+)$/;
+const eventRE = /^(capture-)?(bind|catch):?([A-Za-z_][A-Za-z0-9_]+)$/;
 
 const decodeHTMLCached = cached(he.decode);
 
@@ -88,9 +86,6 @@ export function parse(template, options) {
     if (!stack.length && element !== root) {
       // allow root elements with v-if, v-else-if and v-else
       if (root.if && (element.elseif || element.else)) {
-        if (process.env.NODE_ENV !== 'production') {
-          checkRootConstraints(element);
-        }
         addIfCondition(root, {
           exp: element.elseif,
           block: element,
@@ -98,8 +93,8 @@ export function parse(template, options) {
       } else if (process.env.NODE_ENV !== 'production') {
         warnOnce(
           'Component template should contain exactly one root element. '
-          + 'If you are using v-if on multiple elements, '
-          + 'use v-else-if to chain them instead.',
+          + 'If you are using wx:if on multiple elements, '
+          + 'use wx:elseif to chain them instead.',
           { start: element.start },
         );
       }
@@ -140,23 +135,6 @@ export function parse(template, options) {
     }
   }
 
-  function checkRootConstraints(el) {
-    if (el.tag === 'slot' || el.tag === 'template') {
-      warnOnce(
-        `Cannot use <${el.tag}> as component root element because it may `
-        + 'contain multiple nodes.',
-        { start: el.start },
-      );
-    }
-    if (el.attrsMap.hasOwnProperty('v-for')) {
-      warnOnce(
-        'Cannot use v-for on stateful component root element because '
-        + 'it renders multiple elements.',
-        el.rawAttrsMap['v-for'],
-      );
-    }
-  }
-
   // 解析template
   parseHTML(template, {
     warn,
@@ -186,6 +164,7 @@ export function parse(template, options) {
             return cumulated;
           }, {});
         }
+
         attrs.forEach((attr) => {
           if (invalidAttributeRE.test(attr.name)) {
             warn(
@@ -237,9 +216,6 @@ export function parse(template, options) {
 
       if (!root) {
         root = element;
-        if (process.env.NODE_ENV !== 'production') {
-          checkRootConstraints(root);
-        }
       }
 
       if (!unary) {
@@ -303,10 +279,10 @@ export function parse(template, options) {
         }
         let res;
         let child;
-        if (text !== ' ' && (res = parseText(text))) {
+        if (text !== ' ' && (res = text)) {
           child = {
             type: 2,
-            expression: res.expression,
+            expression: res,
             text,
           };
         } else if (text !== ' ' || !children.length || children[children.length - 1].text !== ' ') {
@@ -374,17 +350,9 @@ export function processFor(el) {
 
   // wx:for
   if ((exp = getAndRemoveAttr(el, 'wx:for'))) {
-    const res = transformExpression(exp);
-    if (res) {
-      el.for = res;
-      el.forItem = 'item';
-      el.forIndex = 'index';
-    } else if (process.env.NODE_ENV !== 'production') {
-      warn(
-        `Invalid wx:for expression: ${exp}`,
-        el.rawAttrsMap['wx:for'],
-      );
-    }
+    el.for = exp;
+    el.forItem = 'item';
+    el.forIndex = 'index';
   }
 
   // wx:for-item
@@ -428,7 +396,7 @@ function processIf(el) {
   const exp = getAndRemoveAttr(el, 'wx:if');
 
   if (exp) {
-    el.if = transformExpression(exp);
+    el.if = exp;
     addIfCondition(el, {
       exp: el.if,
       block: el,
@@ -439,7 +407,7 @@ function processIf(el) {
     }
     const elseif = getAndRemoveAttr(el, 'wx:elseif');
     if (elseif) {
-      el.elseif = transformExpression(elseif);
+      el.elseif = elseif;
     }
   }
 }
@@ -453,9 +421,9 @@ function processIfConditions(el, parent) {
     });
   } else if (process.env.NODE_ENV !== 'production') {
     warn(
-      `v-${el.elseif ? (`else-if="${el.elseif}"`) : 'else'} `
-      + `used on element <${el.tag}> without corresponding v-if.`,
-      el.rawAttrsMap[el.elseif ? 'v-else-if' : 'v-else'],
+      `wx:${el.elseif ? (`elseif="${el.elseif}"`) : 'else'} `
+      + `used on element <${el.tag}> without corresponding wx:if.`,
+      el.rawAttrsMap[el.elseif ? 'wx:elseif' : 'wx:else'],
     );
   }
 }
@@ -468,7 +436,7 @@ function findPrevElement(children) {
     } else {
       if (process.env.NODE_ENV !== 'production' && children[i].text !== ' ') {
         warn(
-          `text "${children[i].text.trim()}" between v-if and v-else(-if) `
+          `text "${children[i].text.trim()}" between wx:if and wx:else(if) `
           + 'will be ignored.',
           children[i],
         );
@@ -489,25 +457,15 @@ export function addIfCondition(el, condition) {
 // e.g. <div slot="xxx">
 function processSlotContent(el) {
   const exp = getAndRemoveAttr(el, 'slot');
-  if (exp) {
-    const slotTarget = transformExpression(exp);
-    if (hasExpression(exp)) {
-      el.slotTargetDynamic = true;
-    } else {
-      el.slotTarget = exp === '""' ? '"default"' : slotTarget;
-    }
 
-    // preserve slot as an attribute for native shadow DOM compat
-    // only for non-scoped slots.
-    addAttr(el, 'slot', slotTarget, getRawBindingAttr(el, 'slot'));
-  }
+  el.slotTarget = exp || 'default';
 }
 
 // handle <slot/> outlets
 function processSlotOutlet(el) {
   if (el.tag === 'slot') {
     const exp = getAndRemoveAttr(el, 'name');
-    el.slotName = exp && transformExpression(exp);
+    el.slotName = exp || 'default';
     // slot不支持for
     delete el.for;
     if (process.env.NODE_ENV !== 'production' && el.key) {
@@ -558,11 +516,13 @@ function processInclude(el) {
 function processTemplate(el) {
   if (el.tag === 'template') {
     let exp;
-    if ((exp = getAndRemoveAttr(el, 'is'))) {
+    if (exp = getAndRemoveAttr(el, 'is')) {
+      // 可以是表达式
       el.templateIs = exp;
-      el.templateData = transformExpression(getAndRemoveAttr(el, 'data'), true);
-    } else {
-      el.templateDefine = getAndRemoveAttr(el, 'name');
+      el.templateData = getAndRemoveAttr(el, 'data');
+    } else if (exp = getAndRemoveAttr(el, 'name') && !hasExpression(exp)) {
+      // 不可以是表达式
+      el.templateDefine = exp;
     }
   }
 }
@@ -573,13 +533,11 @@ function processAttrs(el) {
   let i;
   let l;
   let name;
-  let rawName;
   let value;
-  let syncGen;
 
   for (i = 0, l = list.length; i < l; i++) {
     // 属性名
-    name = rawName = list[i].name;
+    name = list[i].name;
     // 属性值
     value = list[i].value;
 
@@ -599,14 +557,12 @@ function processAttrs(el) {
         modifiers.capture = capture;
       }
 
-      addHandler(el, eventName, transformExpression(value), modifiers, false, warn, list[i]);
+      addHandler(el, eventName, value, modifiers, false, warn, list[i]);
     } else {
-      addAttr(el, name, transformExpression(value), list[i]);
+      addAttr(el, name, value, list[i]);
       // #6887 firefox doesn't update muted state if set via attribute
       // even immediately after element creation
-      if (!el.component
-          && name === 'muted'
-          && platformMustUseProp(el.tag, el.attrsMap.type, name)) {
+      if (name === 'muted' && platformMustUseProp(el.tag, el.attrsMap.type, name)) {
         addProp(el, name, 'true', list[i]);
       }
     }

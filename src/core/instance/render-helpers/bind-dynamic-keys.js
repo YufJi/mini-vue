@@ -16,10 +16,7 @@ export function bindDynamicKeys(baseObj, values) {
       baseObj[values[i]] = values[i + 1];
     } else if (process.env.NODE_ENV !== 'production' && key !== '' && key !== null) {
       // null is a special value for explicitly removing a binding
-      warn(
-        `Invalid value for dynamic directive argument (expected string or null): ${key}`,
-        this,
-      );
+      warn(`Invalid value for dynamic directive argument (expected string or null): ${key}`);
     }
   }
   return baseObj;

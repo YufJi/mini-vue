@@ -1,4 +1,4 @@
-import { hasExpression, transformExpression } from 'compiler/parser/expression';
+import { hasExpression, transformExpression } from 'compiler/parser/expression-parser';
 import { parseStyleText } from 'web/util/style';
 import {
   getAndRemoveAttr,
@@ -10,20 +10,20 @@ function transformNode(el) {
 
   if (exp) {
     if (hasExpression(exp)) {
-      el.styleBinding = transformExpression(exp);
+      el.styleBinding = exp;
     } else {
       el.staticStyle = JSON.stringify(parseStyleText(exp));
     }
   }
 }
 
-function genData(el) {
+function genData(el, state) {
   let data = '';
   if (el.staticStyle) {
     data += `staticStyle:${el.staticStyle},`;
   }
   if (el.styleBinding) {
-    data += `style:(${el.styleBinding}),`;
+    data += `style:(${transformExpression(el.styleBinding, state.scope)}),`;
   }
   return data;
 }

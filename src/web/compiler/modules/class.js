@@ -1,4 +1,4 @@
-import { hasExpression, transformExpression } from 'compiler/parser/expression';
+import { hasExpression, transformExpression } from 'compiler/parser/expression-parser';
 
 import {
   getAndRemoveAttr,
@@ -10,20 +10,20 @@ function transformNode(el) {
 
   if (exp) {
     if (hasExpression(exp)) {
-      el.classBinding = transformExpression(exp);
+      el.classBinding = exp;
     } else {
       el.staticClass = JSON.stringify(exp.replace(/\s+/g, ' ').trim());
     }
   }
 }
 
-function genData(el) {
+function genData(el, state) {
   let data = '';
   if (el.staticClass) {
     data += `staticClass:${el.staticClass},`;
   }
   if (el.classBinding) {
-    data += `class:${el.classBinding},`;
+    data += `class:${transformExpression(el.classBinding, state.scope)},`;
   }
   return data;
 }

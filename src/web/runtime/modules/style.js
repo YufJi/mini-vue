@@ -33,6 +33,7 @@ const normalize = cached((prop) => {
   if (prop !== 'filter' && (prop in emptyStyle)) {
     return prop;
   }
+
   const capName = prop.charAt(0).toUpperCase() + prop.slice(1);
   for (let i = 0; i < vendorNames.length; i++) {
     const name = vendorNames[i] + capName;
@@ -52,8 +53,8 @@ function updateStyle(oldVnode, vnode) {
     return;
   }
 
-  let cur; let
-    name;
+  let cur;
+  let name;
   const el = vnode.elm;
   const oldStaticStyle = oldData.staticStyle;
   const oldStyleBinding = oldData.normalizedStyle || oldData.style || {};

@@ -86,8 +86,11 @@ export function renderMixin(Vue) {
       // separately from one another. Nested component's render fns are called
       // when parent component is patched.
       currentRenderingInstance = vm;
-
-      vnode = new VNode(name || _componentTag, {}, render.call(vm._renderProxy, vm.$createElement), undefined, undefined, vm);
+      // 包一层vnode，用来模拟shadow root
+      vnode = new VNode(name || _componentTag, {}, render.call(vm._renderProxy, { ...vm.$data, ...vm.$props }, {
+        $slots: vm.$slots,
+        $eventBinder: vm.eventBinder,
+      }), undefined, undefined, vm);
     } catch (e) {
       handleError(e, vm, 'render');
       // return error render result,

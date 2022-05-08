@@ -1,5 +1,5 @@
 <template name="template-a">
-  <view>template a</view>
+  <view bind:click="fn2">template a</view>
 
   <!-- <slot name="sad"></slot> -->
 </template>

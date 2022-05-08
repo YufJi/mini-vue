@@ -2,7 +2,7 @@
 
 import { noop } from 'shared/util';
 import { handleError } from './error';
-import { isIE, isIOS, isNative } from './env';
+import { isIOS, isNative } from './env';
 
 export let isUsingMicroTask = false;
 
@@ -50,7 +50,7 @@ if (typeof Promise !== 'undefined' && isNative(Promise)) {
     if (isIOS) setTimeout(noop);
   };
   isUsingMicroTask = true;
-} else if (!isIE && typeof MutationObserver !== 'undefined' && (
+} else if (typeof MutationObserver !== 'undefined' && (
   isNative(MutationObserver)
   // PhantomJS and iOS 7.x
   || MutationObserver.toString() === '[object MutationObserverConstructor]'

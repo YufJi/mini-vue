@@ -1,7 +1,9 @@
 import { camelize, no, extend } from 'shared/util';
 
 import { baseWarn, pluckModuleFunction } from '../helpers';
+import { transformExpression } from '../parser/expression-parser';
 import { emptySlotScopeToken } from '../parser/index';
+import { transformText } from '../parser/text-parser';
 import { genHandlers } from './events';
 
 export class CodegenState {
@@ -11,7 +13,7 @@ export class CodegenState {
     this.transforms = pluckModuleFunction(options.modules, 'transformCode');
     this.dataGenFns = pluckModuleFunction(options.modules, 'genData');
     const isReservedTag = options.isReservedTag || no;
-    this.maybeComponent = (el) => !!el.component || !isReservedTag(el.tag);
+    this.maybeComponent = (el) => !isReservedTag(el.tag);
     this.onceId = 0;
     this.staticRenderFns = [];
 
@@ -19,8 +21,28 @@ export class CodegenState {
     this.importTplDeps = {};
     this.includeTplDeps = {};
     this.importIncludeIndex = 1;
+
+    this.rootScope = makeScope();
+    this.scope = [this.rootScope];
   }
 }
+
+function makeScope(content) {
+  if (content) {
+    return Object.assign(Object.create(null), content);
+  } else {
+    return Object.create(null);
+  }
+}
+
+const genRenderFn = (code) => `function(_a, _x) {
+  const _vm = this;
+  const _h = _vm.$createElement;
+  const _c = _vm._self._c || _h;
+  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember } = _vm;
+
+  return ${code}
+}`;
 
 export function generate(
   ast,
@@ -29,9 +51,10 @@ export function generate(
   const state = new CodegenState(options);
   // fix #11483, Root level <script> tags should not be rendered.
   const code = ast ? (ast.tag === 'script' ? 'null' : genElement(ast, state)) : '_c("div")';
+
   return {
     header: state.header,
-    render: `with(this){ return ${code} }`,
+    render: genRenderFn(code),
     staticRenderFns: state.staticRenderFns,
   };
 }
@@ -39,8 +62,6 @@ export function generate(
 export function genElement(el, state) {
   if (el.staticRoot && !el.staticProcessed) {
     return genStatic(el, state);
-  } else if (el.once && !el.onceProcessed) {
-    return genOnce(el, state);
   } else if (el.for && !el.forProcessed) {
     return genFor(el, state);
   } else if (el.if && !el.ifProcessed) {
@@ -61,6 +82,7 @@ export function genElement(el, state) {
     }
 
     const children = genChildren(el, state, true);
+
     code = `_c('${el.tag}'${data ? `,${data}` : ''}${children ? `,${children}` : ''})`;
 
     // module transforms
@@ -74,44 +96,11 @@ export function genElement(el, state) {
 // hoist static sub-trees out
 function genStatic(el, state) {
   el.staticProcessed = true;
-  state.staticRenderFns.push(`with(this){ return ${genElement(el, state)} }`);
+  state.staticRenderFns.push(genRenderFn(genElement(el, state)));
   return `_m(${state.staticRenderFns.length - 1}${el.staticInFor ? ',true' : ''})`;
 }
 
-// v-once
-function genOnce(el, state) {
-  el.onceProcessed = true;
-  if (el.if && !el.ifProcessed) {
-    return genIf(el, state);
-  } else if (el.staticInFor) {
-    let key = '';
-    let { parent } = el;
-    while (parent) {
-      if (parent.for) {
-        key = parent.key;
-        break;
-      }
-      parent = parent.parent;
-    }
-    if (!key) {
-      process.env.NODE_ENV !== 'production' && state.warn(
-        'v-once can only be used inside v-for that is keyed. ',
-        el.rawAttrsMap['v-once'],
-      );
-      return genElement(el, state);
-    }
-    return `_o(${genElement(el, state)},${state.onceId++},${key})`;
-  } else {
-    return genStatic(el, state);
-  }
-}
-
-export function genIf(
-  el,
-  state,
-  altGen,
-  altEmpty,
-) {
+export function genIf(el, state, altGen, altEmpty) {
   el.ifProcessed = true; // avoid recursion
   return genIfConditions(el.ifConditions.slice(), state, altGen, altEmpty);
 }
@@ -128,7 +117,7 @@ function genIfConditions(
 
   const condition = conditions.shift();
   if (condition.exp) {
-    return `(${condition.exp})?${
+    return `(${transformExpression(condition.exp, state.scope)})?${
       genTernaryExp(condition.block)
     }:${
       genIfConditions(conditions, state, altGen, altEmpty)
@@ -137,18 +126,15 @@ function genIfConditions(
     return `${genTernaryExp(condition.block)}`;
   }
 
-  // v-if with v-once should generate code like (a)?_m(0):_m(1)
   function genTernaryExp(el) {
     return altGen
       ? altGen(el, state)
-      : el.once
-        ? genOnce(el, state)
-        : genElement(el, state);
+      : genElement(el, state);
   }
 }
 
 export function genFor(el, state, altGen, altHelper) {
-  const exp = el.for;
+  const exp = transformExpression(el.for, state.scope);
   const { forItem, forIndex } = el;
 
   if (process.env.NODE_ENV !== 'production'
@@ -158,19 +144,31 @@ export function genFor(el, state, altGen, altHelper) {
     && !el.key
   ) {
     state.warn(
-      `<${el.tag} v-for="${forItem} in ${exp}">: component lists rendered with `
-      + 'v-for should have explicit keys. '
+      `<${el.tag} wx:for="{{${exp}}}" wx:for-item="${forItem}">: component lists rendered with `
+      + 'wx:for should have explicit keys. '
       + 'See https://vuejs.org/guide/list.html#key for more info.',
-      el.rawAttrsMap['v-for'],
+      el.rawAttrsMap['wx:for'],
       true, /* tip */
     );
   }
 
   el.forProcessed = true; // avoid recursion
-  return `${altHelper || '_l'}((${exp}),`
+
+  state.scope.push(makeScope({
+    [forItem]: true,
+    [forIndex]: true,
+  }));
+
+  const code = `${altHelper || '_l'}((${exp}),`
     + `function(${forItem},${forIndex}){`
       + `return ${(altGen || genElement)(el, state)}`
     + '})';
+
+  if (state.scope.length > 1) {
+    state.scope.pop();
+  }
+
+  return code;
 }
 
 export function genData(el, state) {
@@ -178,89 +176,37 @@ export function genData(el, state) {
 
   // key
   if (el.key) {
-    data += `key:${el.key},`;
+    // data += `key: ${transformExpression(el.key, state.scope)},`;
+    data += `key: ${el.key},`;
   }
 
-  // record original tag name for components using "is" attribute
-  if (el.component) {
-    data += `tag:"${el.tag}",`;
-  }
   // module data generation functions
   for (let i = 0; i < state.dataGenFns.length; i++) {
-    data += state.dataGenFns[i](el);
+    data += state.dataGenFns[i](el, state);
   }
   // attributes
   if (el.attrs) {
-    data += `attrs:${genProps(el.attrs)},`;
+    data += `attrs:${genProps(el.attrs, state)},`;
   }
   // DOM props
   if (el.props) {
-    data += `domProps:${genProps(el.props)},`;
+    data += `domProps:${genProps(el.props, state)},`;
   }
+
   // event handlers
   if (el.events) {
-    data += `${genHandlers(el.events)},`;
+    data += `${genHandlers(el.events, state)},`;
   }
 
   // slot target
   // only for non-scoped slots
   if (el.slotTarget) {
-    data += `slot:${el.slotTarget},`;
+    data += `slot: ${transformExpression(el.slotTarget, state.scope)},`;
   }
 
-  // component v-model
-  if (el.model) {
-    data += `model:{value:${
-      el.model.value
-    },callback:${
-      el.model.callback
-    },expression:${
-      el.model.expression
-    }},`;
-  }
-  // inline-template
-  if (el.inlineTemplate) {
-    const inlineTemplate = genInlineTemplate(el, state);
-    if (inlineTemplate) {
-      data += `${inlineTemplate},`;
-    }
-  }
   data = `${data.replace(/,$/, '')}}`;
-  // v-bind dynamic argument wrap
-  // v-bind with dynamic arguments must be applied using the same v-bind object
-  // merge helper so that class/style/mustUseProp attrs are handled correctly.
-  if (el.dynamicAttrs) {
-    data = `_b(${data},"${el.tag}",${genProps(el.dynamicAttrs)})`;
-  }
-  // v-bind data wrap
-  if (el.wrapData) {
-    data = el.wrapData(data);
-  }
-  // v-on data wrap
-  if (el.wrapListeners) {
-    data = el.wrapListeners(data);
-  }
-  return data;
-}
 
-function genInlineTemplate(el, state) {
-  const ast = el.children[0];
-  if (process.env.NODE_ENV !== 'production' && (
-    el.children.length !== 1 || ast.type !== 1
-  )) {
-    state.warn(
-      'Inline-template components must have exactly one child element.',
-      { start: el.start },
-    );
-  }
-  if (ast && ast.type === 1) {
-    const inlineRenderFns = generate(ast, state.options);
-    return `inlineTemplate:{render:function(){${
-      inlineRenderFns.render
-    }},staticRenderFns:[${
-      inlineRenderFns.staticRenderFns.map((code) => `function(){${code}}`).join(',')
-    }]}`;
-  }
+  return data;
 }
 
 export function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
@@ -293,10 +239,7 @@ export function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
 // 0: no normalization needed
 // 1: simple normalization needed (possible 1-level deep nested array)
 // 2: full normalization needed
-function getNormalizationType(
-  children,
-  maybeComponent,
-) {
+function getNormalizationType(children, maybeComponent) {
   let res = 0;
   for (let i = 0; i < children.length; i++) {
     const el = children[i];
@@ -326,13 +269,13 @@ function genNode(node, state) {
   } else if (node.type === 3 && node.isComment) {
     return genComment(node);
   } else {
-    return genText(node);
+    return genText(node, state);
   }
 }
 
-export function genText(text) {
+export function genText(text, state) {
   return `_v(${text.type === 2
-    ? text.expression // no need for () because already wrapped in _s()
+    ? transformText(text.expression, state.scope) // no need for () because already wrapped in _s()
     : transformSpecialNewlines(JSON.stringify(text.text))
   })`;
 }
@@ -342,33 +285,34 @@ export function genComment(comment) {
 }
 
 function genSlot(el, state) {
-  const slotName = el.slotName || '"default"';
+  const slotName = transformExpression(el.slotName);
   const children = genChildren(el, state);
-  let res = `_t(${slotName}${children ? `,function(){return ${children}}` : ''}`;
-  const attrs = el.attrs || el.dynamicAttrs
-    ? genProps((el.attrs || []).concat(el.dynamicAttrs || []).map((attr) => ({
+  let res = `_t(_x, ${slotName}${children ? `,function(){return ${children}}` : ''}`;
+  const attrs = el.attrs
+    ? genProps((el.attrs || []).map((attr) => ({
       // slot props are camelized
       name: camelize(attr.name),
       value: attr.value,
-      dynamic: attr.dynamic,
     })))
     : null;
-  const bind = el.attrsMap['v-bind'];
-  if ((attrs || bind) && !children) {
+
+  if ((attrs) && !children) {
     res += ',null';
   }
   if (attrs) {
     res += `,${attrs}`;
   }
-  if (bind) {
-    res += `${attrs ? '' : ',null'},${bind}`;
-  }
+
   return `${res})`;
 }
 
 function genWxs(el, state) {
   const { src, module } = el;
-  state.header.push(`const ${module} = require('${src}');`);
+
+  if (src && module) {
+    state.header.push(`const ${module} = require('${src}');`);
+    state.rootScope[module] = 'wxs';
+  }
 
   return '_e()';
 }
@@ -377,32 +321,18 @@ function genTemplate(el, state) {
   return '_e()';
 }
 
-function genProps(props) {
+function genProps(props, state) {
   let staticProps = '';
-  let dynamicProps = '';
+
   for (let i = 0; i < props.length; i++) {
     const prop = props[i];
-    const value = transformSpecialNewlines(prop.value);
-    if (prop.dynamic) {
-      dynamicProps += `${prop.name},${value},`;
-    } else {
-      staticProps += `"${prop.name}":${value},`;
-    }
+    const value = transformExpression(prop.value, state.scope);
+    staticProps += `"${prop.name}":${value},`;
   }
-  staticProps = `{${staticProps.slice(0, -1)}}`;
-  if (dynamicProps) {
-    return `_d(${staticProps},[${dynamicProps.slice(0, -1)}])`;
-  } else {
-    return staticProps;
-  }
-}
 
-/* istanbul ignore next */
-function generateValue(value) {
-  if (typeof value === 'string') {
-    return transformSpecialNewlines(value);
-  }
-  return JSON.stringify(value);
+  staticProps = `{${staticProps.slice(0, -1)}}`;
+
+  return staticProps;
 }
 
 // #3895, #4268

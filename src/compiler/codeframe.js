@@ -1,10 +1,6 @@
 const range = 2;
 
-export function generateCodeFrame(
-  source,
-  start = 0,
-  end = source.length,
-) {
+export function generateCodeFrame(source, start = 0, end = source.length) {
   const lines = source.split(/\r?\n/);
   let count = 0;
   const res = [];

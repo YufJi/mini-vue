@@ -21,10 +21,7 @@ export function bindObjectProps(
 ) {
   if (value) {
     if (!isObject(value)) {
-      process.env.NODE_ENV !== 'production' && warn(
-        'v-bind without argument expects an Object or Array value',
-        this,
-      );
+      process.env.NODE_ENV !== 'production' && warn('v-bind without argument expects an Object or Array value');
     } else {
       if (Array.isArray(value)) {
         value = toObject(value);

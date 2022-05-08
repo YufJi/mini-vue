@@ -3,8 +3,11 @@ import './index.less';
 export default {
   name: 'tiny-view',
   mixins: [],
-  render(h) {
-    const slot = this.$slots.default;
+  render(data, ctx) {
+    const _vm = this;
+    const h = _vm.$createElement;
+
+    const slot = ctx.$slots.default;
 
     return h('fragment', {}, slot);
   },

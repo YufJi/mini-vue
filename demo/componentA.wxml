@@ -2,9 +2,17 @@
 <header>
   <h1>I'm a template!</h1>
 </header>
-<p v-if="message">{{ message }}</p>
-<p v-else>No message.</p>
 
-<span bindclick="fn1">i am com A {{message}}</span>
+<span bindclick="fn1">click， i am com A {{message}}</span>
 
-<slot name="abc"></slot>
+<div>
+  111
+  <span>slot abc:</span>
+  <slot name="abc"></slot>
+</div>
+
+<div>
+  222
+  <span>slot abcd:</span>
+  <slot name="abcd"></slot>
+</div>

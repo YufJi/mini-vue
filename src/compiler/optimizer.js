@@ -42,7 +42,6 @@ function markStatic(node) {
     if (
       !isPlatformReservedTag(node.tag)
       && node.tag !== 'slot'
-      && node.attrsMap['inline-template'] == null
     ) {
       return;
     }

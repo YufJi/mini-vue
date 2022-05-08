@@ -1,7 +1,3 @@
-/**
- * Not type-checking this file because it's mostly vendor code.
- */
-
 /*!
  * HTML Parser By John Resig (ejohn.org)
  * Modified by Juriy "kangax" Zaytsev
@@ -15,7 +11,6 @@ import { unicodeRegExp } from 'core/util/lang';
 
 // Regular Expressions for parsing tags and attributes
 const attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
-const dynamicArgAttribute = /^\s*((?:v-[\w-]+:|@|:|#)\[[^=]+?\][^\s"'<>\/=]*)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
 const ncname = `[a-zA-Z_][\\-\\.0-9_a-zA-Z${unicodeRegExp.source}]*`;
 const qnameCapture = `((?:${ncname}\\:)?${ncname})`;
 const startTagOpen = new RegExp(`^<${qnameCapture}`);
@@ -196,9 +191,9 @@ export function parseHTML(html, options) {
         start: index,
       };
       advance(start[0].length);
-      let end; let
-        attr;
-      while (!(end = html.match(startTagClose)) && (attr = html.match(dynamicArgAttribute) || html.match(attribute))) {
+      let end;
+      let attr;
+      while (!(end = html.match(startTagClose)) && (attr = html.match(attribute))) {
         attr.start = index;
         advance(attr[0].length);
         attr.end = index;

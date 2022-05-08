@@ -30,7 +30,7 @@ const ComponentA = {
   },
   data() {
     return {
-      aa: '',
+      message: '我是内部message',
     };
   },
   watch: {
@@ -82,7 +82,7 @@ const ComponentA = {
 
     fn1() {
       this.setData({
-        message: 'inner change',
+        message: '内部改变的message change',
       });
     },
   },
@@ -117,7 +117,7 @@ const App = {
     color: 'blue',
     hide: false,
     name: 'jyf',
-    message: 'asaf',
+    message: '外部默认messsgae',
     zero: 0,
     list: [1, 2, 3],
   },
@@ -162,10 +162,10 @@ const App = {
       this.setData({
         name: 'xhq',
         color: 'yellow',
-        message: 'abc',
+        message: '外部改变的message',
         'list[1]': 8,
         hide: true,
-        slot: 'abc',
+        slot: 'abcd',
       });
       console.log('fn1');
     },

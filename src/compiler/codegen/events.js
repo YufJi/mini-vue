@@ -1,9 +1,11 @@
-export function genHandlers(events) {
+import { transformExpression } from '../parser/expression-parser';
+
+export function genHandlers(events, state) {
   const prefix = 'on:';
   let staticHandlers = '';
 
   for (const name in events) {
-    const handlerCode = genHandler(events[name]);
+    const handlerCode = genHandler(events[name], state);
     staticHandlers += `"${name}":${handlerCode},`;
   }
 
@@ -12,7 +14,7 @@ export function genHandlers(events) {
   return prefix + staticHandlers;
 }
 
-function genHandler(handler) {
+function genHandler(handler, state) {
   if (!handler) {
     return 'function(){}';
   }
@@ -21,5 +23,5 @@ function genHandler(handler) {
     return `[${handler.map((handler) => genHandler(handler)).join(',')}]`;
   }
 
-  return `eventBinder(${handler.value}, ${JSON.stringify(handler.modifiers)})`;
+  return `_x.$eventBinder(${transformExpression(handler.value, state.scope)}, ${JSON.stringify(handler.modifiers)})`;
 }

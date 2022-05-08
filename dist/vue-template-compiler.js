@@ -7,6 +7,10 @@ function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'defau
 var deindent = _interopDefault(require('de-indent'));
 require('lodash');
 var he = _interopDefault(require('he'));
+var parser = _interopDefault(require('@babel/parser'));
+var traverse = _interopDefault(require('@babel/traverse'));
+var generate$1 = _interopDefault(require('@babel/generator'));
+var t = _interopDefault(require('@babel/types'));
 
 /* @flow */
 
@@ -210,13 +214,15 @@ function def(obj, key, val, enumerable) {
  */
 var unicodeRegExp = /a-zA-Z\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD/;
 
-/**
- * Not type-checking this file because it's mostly vendor code.
+/*!
+ * HTML Parser By John Resig (ejohn.org)
+ * Modified by Juriy "kangax" Zaytsev
+ * Original code by Erik Arvidsson (MPL-1.1 OR Apache-2.0 OR GPL-2.0-or-later)
+ * http://erik.eae.net/simplehtmlparser/simplehtmlparser.js
  */
 
 // Regular Expressions for parsing tags and attributes
 var attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
-var dynamicArgAttribute = /^\s*((?:v-[\w-]+:|@|:|#)\[[^=]+?\][^\s"'<>\/=]*)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
 var ncname = "[a-zA-Z_][\\-\\.0-9_a-zA-Z" + (unicodeRegExp.source) + "]*";
 var qnameCapture = "((?:" + ncname + "\\:)?" + ncname + ")";
 var startTagOpen = new RegExp(("^<" + qnameCapture));
@@ -397,9 +403,9 @@ function parseHTML(html, options) {
         start: index,
       };
       advance(start[0].length);
-      var end; var
-        attr;
-      while (!(end = html.match(startTagClose)) && (attr = html.match(dynamicArgAttribute) || html.match(attribute))) {
+      var end;
+      var attr;
+      while (!(end = html.match(startTagClose)) && (attr = html.match(attribute))) {
         attr.start = index;
         advance(attr[0].length);
         attr.end = index;
@@ -647,11 +653,7 @@ function parseComponent(
 
 var range = 2;
 
-function generateCodeFrame(
-  source,
-  start,
-  end
-) {
+function generateCodeFrame(source, start, end) {
   if ( start === void 0 ) start = 0;
   if ( end === void 0 ) end = source.length;
 
@@ -751,26 +753,22 @@ function pluckModuleFunction(modules, key) {
     : [];
 }
 
-function addProp(el, name, value, range, dynamic) {
-  (el.props || (el.props = [])).push(rangeSetItem({ name: name, value: value, dynamic: dynamic }, range));
+function addProp(el, name, value, range) {
+  (el.props || (el.props = [])).push(rangeSetItem({ name: name, value: value }, range));
   el.plain = false;
 }
 
-function addAttr(el, name, value, range, dynamic) {
-  var attrs = dynamic
-    ? (el.dynamicAttrs || (el.dynamicAttrs = []))
-    : (el.attrs || (el.attrs = []));
-  attrs.push(rangeSetItem({ name: name, value: value, dynamic: dynamic }, range));
+function addAttr(el, name, value, range) {
+  var attrs = (el.attrs || (el.attrs = []));
+  attrs.push(rangeSetItem({ name: name, value: value }, range));
   el.plain = false;
 }
 
-function prependModifierMarker(symbol, name, dynamic) {
-  return dynamic
-    ? ("_p(" + name + ",\"" + symbol + "\")")
-    : symbol + name; // mark the event as captured
+function prependModifierMarker(symbol, name) {
+  return symbol + name; // mark the event as captured
 }
 
-function addHandler(el, name, value, modifiers, important, warn, range, dynamic) {
+function addHandler(el, name, value, modifiers, important, warn, range) {
   modifiers = modifiers || emptyObject;
   // warn prevent and passive modifier
   /* istanbul ignore if */
@@ -782,42 +780,25 @@ function addHandler(el, name, value, modifiers, important, warn, range, dynamic)
     );
   }
 
-  // normalize click.right and click.middle since they don't actually fire
-  // this is technically browser-specific, but at least for now browsers are
-  // the only target envs that have right/middle clicks.
-  if (modifiers.right) {
-    if (dynamic) {
-      name = "(" + name + ")==='click'?'contextmenu':(" + name + ")";
-    } else if (name === 'click') {
-      name = 'contextmenu';
-      delete modifiers.right;
-    }
-  } else if (modifiers.middle) {
-    if (dynamic) {
-      name = "(" + name + ")==='click'?'mouseup':(" + name + ")";
-    } else if (name === 'click') {
-      name = 'mouseup';
-    }
-  }
-
   // check capture modifier
   if (modifiers.capture) {
     delete modifiers.capture;
-    name = prependModifierMarker('!', name, dynamic);
+    name = prependModifierMarker('!', name);
   }
+
   if (modifiers.once) {
     delete modifiers.once;
-    name = prependModifierMarker('~', name, dynamic);
+    name = prependModifierMarker('~', name);
   }
   /* istanbul ignore if */
   if (modifiers.passive) {
     delete modifiers.passive;
-    name = prependModifierMarker('&', name, dynamic);
+    name = prependModifierMarker('&', name);
   }
 
   var events = el.events || (el.events = {});
 
-  var newHandler = rangeSetItem({ value: value.trim(), dynamic: dynamic }, range);
+  var newHandler = rangeSetItem({ value: value.trim() }, range);
   if (modifiers !== emptyObject) {
     newHandler.modifiers = modifiers;
   }
@@ -836,7 +817,7 @@ function addHandler(el, name, value, modifiers, important, warn, range, dynamic)
 }
 
 function getRawBindingAttr(el, name) {
-  return el.rawAttrsMap[(":" + name)] || el.rawAttrsMap[("v-bind:" + name)] || el.rawAttrsMap[name];
+  return el.rawAttrsMap[name];
 }
 
 // note: this only removes the attr from the Array (attrsList) so that it
@@ -872,53 +853,10 @@ function rangeSetItem(item, range) {
   return item;
 }
 
-var defaultTagRE = /\{\{((?:.|\r?\n)+?)\}\}/g;
-
-function parseText(text) {
-  var tagRE = defaultTagRE;
-  if (!tagRE.test(text)) {
-    return;
-  }
-  var tokens = [];
-  var lastIndex = tagRE.lastIndex = 0;
-  var match;
-  var index;
-  var tokenValue;
-  while ((match = tagRE.exec(text))) {
-    index = match.index;
-    // push text token
-    if (index > lastIndex) {
-      tokenValue = text.slice(lastIndex, index);
-      tokens.push(JSON.stringify(tokenValue));
-    }
-    // tag token
-    var exp = match[1].trim();
-    tokens.push(("_s(" + exp + ")"));
-    lastIndex = index + match[0].length;
-  }
-  if (lastIndex < text.length) {
-    tokenValue = text.slice(lastIndex);
-    tokens.push(JSON.stringify(tokenValue));
-  }
-  return {
-    expression: tokens.join('+'),
-  };
-}
-
 // not allow {{x:{y:1}}}
-// or use complex parser
 
 var fullExpressionTagReg = /^\{\{([^`{}]+)\}\}$/;
 var expressionTagReg = /\{\{([^`{}]+)\}\}/g;
-
-var spreadReg = /^\.\.\.[\w$_][\w$_\d]*/; // ...abc
-var objReg = /^[\w$_][\w$_\d]*\s*:\s*[\w$_][\w$_\d]*/; // name: abc
-var es2015ObjReg = /^[\w$_][\w$_\d]*/; // abc
-
-function isObject$1(str) {
-  str = str.trim();
-  return str.match(spreadReg) || str.match(objReg) || str.match(es2015ObjReg);
-}
 
 function escapeString(str) {
   return str.replace(/[\\']/g, '\\$&');
@@ -930,17 +868,24 @@ function hasExpression(str) {
   return str.match(expressionTagReg);
 }
 
-function transformExpression(str, forceObject) {
-  if ( forceObject === void 0 ) forceObject = false;
+function transformExpression(str, scope, config) {
+  if ( config === void 0 ) config = {};
 
+  var ret = transformExpressionByPart(str, scope, config);
+
+  return ret.join(' + ');
+}
+
+function transformExpressionByPart(str, scope, config) {
+  str = str.trim();
+  // 非表达式
   if (!str.match(expressionTagReg)) {
-    return ("\"" + str + "\"");
+    return [("\"" + (escapeString(str)) + "\"")];
   }
 
   var match = str.match(fullExpressionTagReg);
-
   if (match) {
-    return (forceObject && isObject$1(match[1])) ? ("{" + (match[1]) + "}") : match[1];
+    return [transformCode(match[1], scope, config)];
   }
 
   var totalLength = str.length;
@@ -949,11 +894,12 @@ function transformExpression(str, forceObject) {
   /* eslint no-cond-assign:0 */
   while (match = expressionTagReg.exec(str)) {
     var code = match[1];
-
     if (match.index !== lastIndex) {
       gen.push(("\"" + (escapeString(str.slice(lastIndex, match.index))) + "\""));
     }
-    gen.push(code);
+
+    // 变量
+    gen.push(transformCode(code, scope, config));
 
     lastIndex = expressionTagReg.lastIndex;
   }
@@ -962,7 +908,170 @@ function transformExpression(str, forceObject) {
     gen.push(("\"" + (escapeString(str.slice(lastIndex))) + "\""));
   }
 
-  return gen.join(' + ');
+  return gen;
+}
+
+var visitor = {
+  noScope: true,
+  ReferencedIdentifier: function ReferencedIdentifier(path) {
+    var parent = path.parent;
+    var node = path.node;
+
+    if (node.__xmlSkipped) {
+      return;
+    }
+
+    var nameScope = findScope(this.xmlScope, node.name);
+
+    if (!nameScope) {
+      node.name = "_a['" + (node.name) + "']";
+    } else if (nameScope === 'wxs') {
+      var parentType = parent && parent.type;
+      if (node.type === 'Identifier' && !(parentType === 'MemberExpression' && parent.object === node)) {
+        var args = [t.arrayExpression([node])];
+        if (parentType === 'CallExpression' && parent.callee === node) {
+          args.push(t.numericLiteral(1));
+        }
+        var newNode = t.callExpression(t.identifier('$getWxsMember'), args);
+        newNode.callee.__xmlSkipped = true;
+        path.replaceWith(newNode);
+        path.skip();
+      }
+    }
+  },
+  MemberExpression: function MemberExpression(path) {
+    var parent = path.parent;
+    var node = path.node;
+
+    var parentType = parent && parent.type;
+    // do not transform function call
+    // skip call callee x[y.q]
+    /* root member node */
+    if (parentType !== 'MemberExpression') {
+      // allow {{x.y.z}} even x is undefined
+      var members = [node];
+      var root = node.object;
+
+      while (root.type === 'MemberExpression') {
+        members.push(root);
+        root = root.object;
+      }
+
+      var isSJS = findScope(this.xmlScope, root.name) === 'wxs';
+
+      if (!isSJS && this.strictDataMember) {
+        return;
+      }
+
+      // TODO. use https://www.npmjs.com/package/babel-plugin-transform-optional-chaining
+      var memberFn = isSJS ? '$getWxsMember' : '$getLooseDataMember';
+      members.reverse();
+      var args = [root];
+
+      if (isSJS) {
+        root.__xmlSkipped = true;
+      }
+
+      if (root.type === 'ThisExpression') {
+        args.pop();
+        args.push(members.shift());
+      }
+
+      if (!members.length) {
+        return;
+      }
+
+      members.forEach(function (m) {
+        // x[y]
+        if (m.computed) {
+          args.push(m.property);
+        } else {
+          // x.y
+          args.push(t.stringLiteral(m.property.name));
+        }
+      });
+
+      var callArgs = [t.arrayExpression(args)];
+      if (parent.callee === node) {
+        callArgs.push(t.numericLiteral(1));
+      }
+
+      var newNode = t.callExpression(t.identifier(memberFn), callArgs);
+      newNode.callee.__xmlSkipped = true;
+      // will process a.v of x.y[a.v]
+      path.replaceWith(newNode);
+      // path.skip();
+    }
+  },
+};
+
+var babylonConfig = {
+  plugins: ['objectRestSpread'],
+};
+
+function transformCode(exp, xmlScope, config) {
+  var codeStr = exp;
+
+  if (config.forceObject) {
+    codeStr = "{" + codeStr + "}";
+  }
+
+  var expression = parser.parseExpression(codeStr, babylonConfig);
+  var start = expression.start;
+  var end = expression.end;
+  var ast = {
+    type: 'File',
+    start: start,
+    end: end,
+    program: {
+      start: start,
+      end: end,
+      type: 'Program',
+      body: [{
+        start: start,
+        end: end,
+        type: 'ExpressionStatement',
+        expression: expression,
+      }],
+    },
+  };
+
+  traverse(ast, visitor, undefined, {
+    xmlScope: xmlScope,
+    strictDataMember: !!config.strictDataMember,
+  });
+
+  var code;
+
+  try {
+    code = generate$1(ast).code;
+  } catch (error) {
+    console.log('生成code出错：', error);
+  }
+
+  if (code.charAt(code.length - 1) === ';') {
+    code = code.slice(0, -1);
+  }
+
+  return ("" + code);
+}
+
+function findScope(scope, name) {
+  if (scope) {
+    var result = false;
+
+    for (var i = scope.length - 1; i > -1; i--) {
+      var item = scope[i];
+      if (item[name]) {
+        result = item[name];
+        break;
+      }
+    }
+
+    return result;
+  }
+
+  return false;
 }
 
 var lineBreakRE = /[\r\n]/;
@@ -970,7 +1079,7 @@ var whitespaceRE = /[ \f\t\r\n]+/g;
 var invalidAttributeRE = /[\s"'<>\/=]/;
 var variableRE = /^[$\w]+$/;
 var forKeyRE = /^[\w.$]+$/;
-var eventRE = /^(capture-)?(bind|catch):?([A-Za-z_]+)$/;
+var eventRE = /^(capture-)?(bind|catch):?([A-Za-z_][A-Za-z0-9_]+)$/;
 
 var decodeHTMLCached = cached(he.decode);
 
@@ -1035,9 +1144,6 @@ function parse(template, options) {
     if (!stack.length && element !== root) {
       // allow root elements with v-if, v-else-if and v-else
       if (root.if && (element.elseif || element.else)) {
-        if (process.env.NODE_ENV !== 'production') {
-          checkRootConstraints(element);
-        }
         addIfCondition(root, {
           exp: element.elseif,
           block: element,
@@ -1045,8 +1151,8 @@ function parse(template, options) {
       } else if (process.env.NODE_ENV !== 'production') {
         warnOnce(
           'Component template should contain exactly one root element. '
-          + 'If you are using v-if on multiple elements, '
-          + 'use v-else-if to chain them instead.',
+          + 'If you are using wx:if on multiple elements, '
+          + 'use wx:elseif to chain them instead.',
           { start: element.start }
         );
       }
@@ -1087,23 +1193,6 @@ function parse(template, options) {
     }
   }
 
-  function checkRootConstraints(el) {
-    if (el.tag === 'slot' || el.tag === 'template') {
-      warnOnce(
-        "Cannot use <" + (el.tag) + "> as component root element because it may "
-        + 'contain multiple nodes.',
-        { start: el.start }
-      );
-    }
-    if (el.attrsMap.hasOwnProperty('v-for')) {
-      warnOnce(
-        'Cannot use v-for on stateful component root element because '
-        + 'it renders multiple elements.',
-        el.rawAttrsMap['v-for']
-      );
-    }
-  }
-
   // 解析template
   parseHTML(template, {
     warn: warn,
@@ -1133,6 +1222,7 @@ function parse(template, options) {
             return cumulated;
           }, {});
         }
+
         attrs.forEach(function (attr) {
           if (invalidAttributeRE.test(attr.name)) {
             warn(
@@ -1185,9 +1275,6 @@ function parse(template, options) {
 
       if (!root) {
         root = element;
-        if (process.env.NODE_ENV !== 'production') {
-          checkRootConstraints(root);
-        }
       }
 
       if (!unary) {
@@ -1251,10 +1338,10 @@ function parse(template, options) {
         }
         var res;
         var child;
-        if (text !== ' ' && (res = parseText(text))) {
+        if (text !== ' ' && (res = text)) {
           child = {
             type: 2,
-            expression: res.expression,
+            expression: res,
             text: text,
           };
         } else if (text !== ' ' || !children.length || children[children.length - 1].text !== ' ') {
@@ -1322,17 +1409,9 @@ function processFor(el) {
 
   // wx:for
   if ((exp = getAndRemoveAttr(el, 'wx:for'))) {
-    var res = transformExpression(exp);
-    if (res) {
-      el.for = res;
-      el.forItem = 'item';
-      el.forIndex = 'index';
-    } else if (process.env.NODE_ENV !== 'production') {
-      warn(
-        ("Invalid wx:for expression: " + exp),
-        el.rawAttrsMap['wx:for']
-      );
-    }
+    el.for = exp;
+    el.forItem = 'item';
+    el.forIndex = 'index';
   }
 
   // wx:for-item
@@ -1376,7 +1455,7 @@ function processIf(el) {
   var exp = getAndRemoveAttr(el, 'wx:if');
 
   if (exp) {
-    el.if = transformExpression(exp);
+    el.if = exp;
     addIfCondition(el, {
       exp: el.if,
       block: el,
@@ -1387,7 +1466,7 @@ function processIf(el) {
     }
     var elseif = getAndRemoveAttr(el, 'wx:elseif');
     if (elseif) {
-      el.elseif = transformExpression(elseif);
+      el.elseif = elseif;
     }
   }
 }
@@ -1401,9 +1480,9 @@ function processIfConditions(el, parent) {
     });
   } else if (process.env.NODE_ENV !== 'production') {
     warn(
-      "v-" + (el.elseif ? (("else-if=\"" + (el.elseif) + "\"")) : 'else') + " "
-      + "used on element <" + (el.tag) + "> without corresponding v-if.",
-      el.rawAttrsMap[el.elseif ? 'v-else-if' : 'v-else']
+      "wx:" + (el.elseif ? (("elseif=\"" + (el.elseif) + "\"")) : 'else') + " "
+      + "used on element <" + (el.tag) + "> without corresponding wx:if.",
+      el.rawAttrsMap[el.elseif ? 'wx:elseif' : 'wx:else']
     );
   }
 }
@@ -1416,7 +1495,7 @@ function findPrevElement(children) {
     } else {
       if (process.env.NODE_ENV !== 'production' && children[i].text !== ' ') {
         warn(
-          "text \"" + (children[i].text.trim()) + "\" between v-if and v-else(-if) "
+          "text \"" + (children[i].text.trim()) + "\" between wx:if and wx:else(if) "
           + 'will be ignored.',
           children[i]
         );
@@ -1437,25 +1516,15 @@ function addIfCondition(el, condition) {
 // e.g. <div slot="xxx">
 function processSlotContent(el) {
   var exp = getAndRemoveAttr(el, 'slot');
-  if (exp) {
-    var slotTarget = transformExpression(exp);
-    if (hasExpression(exp)) {
-      el.slotTargetDynamic = true;
-    } else {
-      el.slotTarget = exp === '""' ? '"default"' : slotTarget;
-    }
 
-    // preserve slot as an attribute for native shadow DOM compat
-    // only for non-scoped slots.
-    addAttr(el, 'slot', slotTarget, getRawBindingAttr(el, 'slot'));
-  }
+  el.slotTarget = exp || 'default';
 }
 
 // handle <slot/> outlets
 function processSlotOutlet(el) {
   if (el.tag === 'slot') {
     var exp = getAndRemoveAttr(el, 'name');
-    el.slotName = exp && transformExpression(exp);
+    el.slotName = exp || 'default';
     // slot不支持for
     delete el.for;
     if (process.env.NODE_ENV !== 'production' && el.key) {
@@ -1506,11 +1575,13 @@ function processInclude(el) {
 function processTemplate(el) {
   if (el.tag === 'template') {
     var exp;
-    if ((exp = getAndRemoveAttr(el, 'is'))) {
+    if (exp = getAndRemoveAttr(el, 'is')) {
+      // 可以是表达式
       el.templateIs = exp;
-      el.templateData = transformExpression(getAndRemoveAttr(el, 'data'), true);
-    } else {
-      el.templateDefine = getAndRemoveAttr(el, 'name');
+      el.templateData = getAndRemoveAttr(el, 'data');
+    } else if (exp = getAndRemoveAttr(el, 'name') && !hasExpression(exp)) {
+      // 不可以是表达式
+      el.templateDefine = exp;
     }
   }
 }
@@ -1521,12 +1592,11 @@ function processAttrs(el) {
   var i;
   var l;
   var name;
-  var rawName;
   var value;
 
   for (i = 0, l = list.length; i < l; i++) {
     // 属性名
-    name = rawName = list[i].name;
+    name = list[i].name;
     // 属性值
     value = list[i].value;
 
@@ -1546,14 +1616,12 @@ function processAttrs(el) {
         modifiers.capture = capture;
       }
 
-      addHandler(el, eventName, transformExpression(value), modifiers, false, warn, list[i]);
+      addHandler(el, eventName, value, modifiers, false, warn, list[i]);
     } else {
-      addAttr(el, name, transformExpression(value), list[i]);
+      addAttr(el, name, value, list[i]);
       // #6887 firefox doesn't update muted state if set via attribute
       // even immediately after element creation
-      if (!el.component
-          && name === 'muted'
-          && platformMustUseProp(el.tag, el.attrsMap.type, name)) {
+      if (name === 'muted' && platformMustUseProp(el.tag, el.attrsMap.type, name)) {
         addProp(el, name, 'true', list[i]);
       }
     }
@@ -1631,7 +1699,6 @@ function markStatic(node) {
     if (
       !isPlatformReservedTag(node.tag)
       && node.tag !== 'slot'
-      && node.attrsMap['inline-template'] == null
     ) {
       return;
     }
@@ -1717,12 +1784,22 @@ function isDirectChildOfTemplateFor(node) {
   return false;
 }
 
-function genHandlers(events) {
+// 文本需要toString
+
+function transformText(str, scope, config) {
+  if ( config === void 0 ) config = {};
+
+  var ret = transformExpressionByPart(str, scope, config);
+
+  return ret.map(function (item) { return ("_s(" + item + ")"); }).join(' + ');
+}
+
+function genHandlers(events, state) {
   var prefix = 'on:';
   var staticHandlers = '';
 
   for (var name in events) {
-    var handlerCode = genHandler(events[name]);
+    var handlerCode = genHandler(events[name], state);
     staticHandlers += "\"" + name + "\":" + handlerCode + ",";
   }
 
@@ -1731,7 +1808,7 @@ function genHandlers(events) {
   return prefix + staticHandlers;
 }
 
-function genHandler(handler) {
+function genHandler(handler, state) {
   if (!handler) {
     return 'function(){}';
   }
@@ -1740,7 +1817,7 @@ function genHandler(handler) {
     return ("[" + (handler.map(function (handler) { return genHandler(handler); }).join(',')) + "]");
   }
 
-  return ("eventBinder(" + (handler.value) + ", " + (JSON.stringify(handler.modifiers)) + ")");
+  return ("_x.$eventBinder(" + (transformExpression(handler.value, state.scope)) + ", " + (JSON.stringify(handler.modifiers)) + ")");
 }
 
 var CodegenState = function CodegenState(options) {
@@ -1749,7 +1826,7 @@ var CodegenState = function CodegenState(options) {
   this.transforms = pluckModuleFunction(options.modules, 'transformCode');
   this.dataGenFns = pluckModuleFunction(options.modules, 'genData');
   var isReservedTag = options.isReservedTag || no;
-  this.maybeComponent = function (el) { return !!el.component || !isReservedTag(el.tag); };
+  this.maybeComponent = function (el) { return !isReservedTag(el.tag); };
   this.onceId = 0;
   this.staticRenderFns = [];
 
@@ -1757,7 +1834,20 @@ var CodegenState = function CodegenState(options) {
   this.importTplDeps = {};
   this.includeTplDeps = {};
   this.importIncludeIndex = 1;
+
+  this.rootScope = makeScope();
+  this.scope = [this.rootScope];
 };
+
+function makeScope(content) {
+  if (content) {
+    return Object.assign(Object.create(null), content);
+  } else {
+    return Object.create(null);
+  }
+}
+
+var genRenderFn = function (code) { return ("function(_a, _x) {\n  const _vm = this;\n  const _h = _vm.$createElement;\n  const _c = _vm._self._c || _h;\n  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember } = _vm;\n\n  return " + code + "\n}"); };
 
 function generate(
   ast,
@@ -1766,9 +1856,10 @@ function generate(
   var state = new CodegenState(options);
   // fix #11483, Root level <script> tags should not be rendered.
   var code = ast ? (ast.tag === 'script' ? 'null' : genElement(ast, state)) : '_c("div")';
+
   return {
     header: state.header,
-    render: ("with(this){ return " + code + " }"),
+    render: genRenderFn(code),
     staticRenderFns: state.staticRenderFns,
   };
 }
@@ -1776,8 +1867,6 @@ function generate(
 function genElement(el, state) {
   if (el.staticRoot && !el.staticProcessed) {
     return genStatic(el, state);
-  } else if (el.once && !el.onceProcessed) {
-    return genOnce(el, state);
   } else if (el.for && !el.forProcessed) {
     return genFor(el, state);
   } else if (el.if && !el.ifProcessed) {
@@ -1798,6 +1887,7 @@ function genElement(el, state) {
     }
 
     var children = genChildren(el, state, true);
+
     code = "_c('" + (el.tag) + "'" + (data ? ("," + data) : '') + (children ? ("," + children) : '') + ")";
 
     // module transforms
@@ -1811,44 +1901,11 @@ function genElement(el, state) {
 // hoist static sub-trees out
 function genStatic(el, state) {
   el.staticProcessed = true;
-  state.staticRenderFns.push(("with(this){ return " + (genElement(el, state)) + " }"));
+  state.staticRenderFns.push(genRenderFn(genElement(el, state)));
   return ("_m(" + (state.staticRenderFns.length - 1) + (el.staticInFor ? ',true' : '') + ")");
 }
 
-// v-once
-function genOnce(el, state) {
-  el.onceProcessed = true;
-  if (el.if && !el.ifProcessed) {
-    return genIf(el, state);
-  } else if (el.staticInFor) {
-    var key = '';
-    var parent = el.parent;
-    while (parent) {
-      if (parent.for) {
-        key = parent.key;
-        break;
-      }
-      parent = parent.parent;
-    }
-    if (!key) {
-      process.env.NODE_ENV !== 'production' && state.warn(
-        'v-once can only be used inside v-for that is keyed. ',
-        el.rawAttrsMap['v-once']
-      );
-      return genElement(el, state);
-    }
-    return ("_o(" + (genElement(el, state)) + "," + (state.onceId++) + "," + key + ")");
-  } else {
-    return genStatic(el, state);
-  }
-}
-
-function genIf(
-  el,
-  state,
-  altGen,
-  altEmpty
-) {
+function genIf(el, state, altGen, altEmpty) {
   el.ifProcessed = true; // avoid recursion
   return genIfConditions(el.ifConditions.slice(), state, altGen, altEmpty);
 }
@@ -1865,23 +1922,22 @@ function genIfConditions(
 
   var condition = conditions.shift();
   if (condition.exp) {
-    return ("(" + (condition.exp) + ")?" + (genTernaryExp(condition.block)) + ":" + (genIfConditions(conditions, state, altGen, altEmpty)));
+    return ("(" + (transformExpression(condition.exp, state.scope)) + ")?" + (genTernaryExp(condition.block)) + ":" + (genIfConditions(conditions, state, altGen, altEmpty)));
   } else {
     return ("" + (genTernaryExp(condition.block)));
   }
 
-  // v-if with v-once should generate code like (a)?_m(0):_m(1)
   function genTernaryExp(el) {
     return altGen
       ? altGen(el, state)
-      : el.once
-        ? genOnce(el, state)
-        : genElement(el, state);
+      : genElement(el, state);
   }
 }
 
 function genFor(el, state, altGen, altHelper) {
-  var exp = el.for;
+  var obj;
+
+  var exp = transformExpression(el.for, state.scope);
   var forItem = el.forItem;
   var forIndex = el.forIndex;
 
@@ -1892,19 +1948,28 @@ function genFor(el, state, altGen, altHelper) {
     && !el.key
   ) {
     state.warn(
-      "<" + (el.tag) + " v-for=\"" + forItem + " in " + exp + "\">: component lists rendered with "
-      + 'v-for should have explicit keys. '
+      "<" + (el.tag) + " wx:for=\"{{" + exp + "}}\" wx:for-item=\"" + forItem + "\">: component lists rendered with "
+      + 'wx:for should have explicit keys. '
       + 'See https://vuejs.org/guide/list.html#key for more info.',
-      el.rawAttrsMap['v-for'],
+      el.rawAttrsMap['wx:for'],
       true /* tip */
     );
   }
 
   el.forProcessed = true; // avoid recursion
-  return (altHelper || '_l') + "((" + exp + "),"
+
+  state.scope.push(makeScope(( obj = {}, obj[forItem] = true, obj[forIndex] = true, obj )));
+
+  var code = (altHelper || '_l') + "((" + exp + "),"
     + "function(" + forItem + "," + forIndex + "){"
       + "return " + ((altGen || genElement)(el, state))
     + '})';
+
+  if (state.scope.length > 1) {
+    state.scope.pop();
+  }
+
+  return code;
 }
 
 function genData(el, state) {
@@ -1912,79 +1977,37 @@ function genData(el, state) {
 
   // key
   if (el.key) {
-    data += "key:" + (el.key) + ",";
+    // data += `key: ${transformExpression(el.key, state.scope)},`;
+    data += "key: " + (el.key) + ",";
   }
 
-  // record original tag name for components using "is" attribute
-  if (el.component) {
-    data += "tag:\"" + (el.tag) + "\",";
-  }
   // module data generation functions
   for (var i = 0; i < state.dataGenFns.length; i++) {
-    data += state.dataGenFns[i](el);
+    data += state.dataGenFns[i](el, state);
   }
   // attributes
   if (el.attrs) {
-    data += "attrs:" + (genProps(el.attrs)) + ",";
+    data += "attrs:" + (genProps(el.attrs, state)) + ",";
   }
   // DOM props
   if (el.props) {
-    data += "domProps:" + (genProps(el.props)) + ",";
+    data += "domProps:" + (genProps(el.props, state)) + ",";
   }
+
   // event handlers
   if (el.events) {
-    data += (genHandlers(el.events)) + ",";
+    data += (genHandlers(el.events, state)) + ",";
   }
 
   // slot target
   // only for non-scoped slots
   if (el.slotTarget) {
-    data += "slot:" + (el.slotTarget) + ",";
+    data += "slot: " + (transformExpression(el.slotTarget, state.scope)) + ",";
   }
 
-  // component v-model
-  if (el.model) {
-    data += "model:{value:" + (el.model.value) + ",callback:" + (el.model.callback) + ",expression:" + (el.model.expression) + "},";
-  }
-  // inline-template
-  if (el.inlineTemplate) {
-    var inlineTemplate = genInlineTemplate(el, state);
-    if (inlineTemplate) {
-      data += inlineTemplate + ",";
-    }
-  }
   data = (data.replace(/,$/, '')) + "}";
-  // v-bind dynamic argument wrap
-  // v-bind with dynamic arguments must be applied using the same v-bind object
-  // merge helper so that class/style/mustUseProp attrs are handled correctly.
-  if (el.dynamicAttrs) {
-    data = "_b(" + data + ",\"" + (el.tag) + "\"," + (genProps(el.dynamicAttrs)) + ")";
-  }
-  // v-bind data wrap
-  if (el.wrapData) {
-    data = el.wrapData(data);
-  }
-  // v-on data wrap
-  if (el.wrapListeners) {
-    data = el.wrapListeners(data);
-  }
-  return data;
-}
 
-function genInlineTemplate(el, state) {
-  var ast = el.children[0];
-  if (process.env.NODE_ENV !== 'production' && (
-    el.children.length !== 1 || ast.type !== 1
-  )) {
-    state.warn(
-      'Inline-template components must have exactly one child element.',
-      { start: el.start }
-    );
-  }
-  if (ast && ast.type === 1) {
-    var inlineRenderFns = generate(ast, state.options);
-    return ("inlineTemplate:{render:function(){" + (inlineRenderFns.render) + "},staticRenderFns:[" + (inlineRenderFns.staticRenderFns.map(function (code) { return ("function(){" + code + "}"); }).join(',')) + "]}");
-  }
+  return data;
 }
 
 function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
@@ -2015,10 +2038,7 @@ function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
 // 0: no normalization needed
 // 1: simple normalization needed (possible 1-level deep nested array)
 // 2: full normalization needed
-function getNormalizationType(
-  children,
-  maybeComponent
-) {
+function getNormalizationType(children, maybeComponent) {
   var res = 0;
   for (var i = 0; i < children.length; i++) {
     var el = children[i];
@@ -2048,13 +2068,13 @@ function genNode(node, state) {
   } else if (node.type === 3 && node.isComment) {
     return genComment(node);
   } else {
-    return genText(node);
+    return genText(node, state);
   }
 }
 
-function genText(text) {
+function genText(text, state) {
   return ("_v(" + (text.type === 2
-    ? text.expression // no need for () because already wrapped in _s()
+    ? transformText(text.expression, state.scope) // no need for () because already wrapped in _s()
     : transformSpecialNewlines(JSON.stringify(text.text))) + ")");
 }
 
@@ -2063,34 +2083,35 @@ function genComment(comment) {
 }
 
 function genSlot(el, state) {
-  var slotName = el.slotName || '"default"';
+  var slotName = transformExpression(el.slotName);
   var children = genChildren(el, state);
-  var res = "_t(" + slotName + (children ? (",function(){return " + children + "}") : '');
-  var attrs = el.attrs || el.dynamicAttrs
-    ? genProps((el.attrs || []).concat(el.dynamicAttrs || []).map(function (attr) { return ({
+  var res = "_t(_x, " + slotName + (children ? (",function(){return " + children + "}") : '');
+  var attrs = el.attrs
+    ? genProps((el.attrs || []).map(function (attr) { return ({
       // slot props are camelized
       name: camelize(attr.name),
       value: attr.value,
-      dynamic: attr.dynamic,
     }); }))
     : null;
-  var bind = el.attrsMap['v-bind'];
-  if ((attrs || bind) && !children) {
+
+  if ((attrs) && !children) {
     res += ',null';
   }
   if (attrs) {
     res += "," + attrs;
   }
-  if (bind) {
-    res += (attrs ? '' : ',null') + "," + bind;
-  }
+
   return (res + ")");
 }
 
 function genWxs(el, state) {
   var src = el.src;
   var module = el.module;
-  state.header.push(("const " + module + " = require('" + src + "');"));
+
+  if (src && module) {
+    state.header.push(("const " + module + " = require('" + src + "');"));
+    state.rootScope[module] = 'wxs';
+  }
 
   return '_e()';
 }
@@ -2099,24 +2120,18 @@ function genTemplate(el, state) {
   return '_e()';
 }
 
-function genProps(props) {
+function genProps(props, state) {
   var staticProps = '';
-  var dynamicProps = '';
+
   for (var i = 0; i < props.length; i++) {
     var prop = props[i];
-    var value = transformSpecialNewlines(prop.value);
-    if (prop.dynamic) {
-      dynamicProps += (prop.name) + "," + value + ",";
-    } else {
-      staticProps += "\"" + (prop.name) + "\":" + value + ",";
-    }
+    var value = transformExpression(prop.value, state.scope);
+    staticProps += "\"" + (prop.name) + "\":" + value + ",";
   }
+
   staticProps = "{" + (staticProps.slice(0, -1)) + "}";
-  if (dynamicProps) {
-    return ("_d(" + staticProps + ",[" + (dynamicProps.slice(0, -1)) + "])");
-  } else {
-    return staticProps;
-  }
+
+  return staticProps;
 }
 
 // #3895, #4268
@@ -2127,9 +2142,7 @@ function transformSpecialNewlines(text) {
 }
 
 var ASSET_TYPES = [
-  'component',
-  'directive',
-  'filter' ];
+  'component' ];
 
 var LIFECYCLE_HOOKS = [
   'beforeCreate',
@@ -3110,7 +3123,7 @@ function flushCallbacks() {
 // completely stops working after triggering a few times... so, if native
 // Promise is available, we will use it:
 /* istanbul ignore next, $flow-disable-line */
-if (typeof Promise !== 'undefined' && isNative(Promise)) ; else if (!isIE && typeof MutationObserver !== 'undefined' && (
+if (typeof Promise !== 'undefined' && isNative(Promise)) ; else if (typeof MutationObserver !== 'undefined' && (
   isNative(MutationObserver)
   // PhantomJS and iOS 7.x
   || MutationObserver.toString() === '[object MutationObserverConstructor]'
@@ -3201,20 +3214,20 @@ function transformNode(el) {
 
   if (exp) {
     if (hasExpression(exp)) {
-      el.classBinding = transformExpression(exp);
+      el.classBinding = exp;
     } else {
       el.staticClass = JSON.stringify(exp.replace(/\s+/g, ' ').trim());
     }
   }
 }
 
-function genData$1(el) {
+function genData$1(el, state) {
   var data = '';
   if (el.staticClass) {
     data += "staticClass:" + (el.staticClass) + ",";
   }
   if (el.classBinding) {
-    data += "class:" + (el.classBinding) + ",";
+    data += "class:" + (transformExpression(el.classBinding, state.scope)) + ",";
   }
   return data;
 }
@@ -3243,20 +3256,20 @@ function transformNode$1(el) {
 
   if (exp) {
     if (hasExpression(exp)) {
-      el.styleBinding = transformExpression(exp);
+      el.styleBinding = exp;
     } else {
       el.staticStyle = JSON.stringify(parseStyleText(exp));
     }
   }
 }
 
-function genData$2(el) {
+function genData$2(el, state) {
   var data = '';
   if (el.staticStyle) {
     data += "staticStyle:" + (el.staticStyle) + ",";
   }
   if (el.styleBinding) {
-    data += "style:(" + (el.styleBinding) + "),";
+    data += "style:(" + (transformExpression(el.styleBinding, state.scope)) + "),";
   }
   return data;
 }
