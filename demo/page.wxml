@@ -3,29 +3,37 @@
 <import src="./a.wxml" />
 <include src="./b.wxml" />
 
-<template is="template-a" data="{{ a, ...spread, b: 'x' }}"></template>
+<template is="template-a" data="{{ list, message }}"></template>
 
 <template name="template-c">
-  <view>template b</view>
+  <div>模版C内容</div>
+  <template is="template-b"></template>
 </template>
 
-<header class="abc-{{name}} sad" style="color: {{color}}; font-size: 12px" catch:click="{{fn}}1">
-  <h1 bind:click="fn2">I'm a template!</h1>
+<template is="template-c"></template>
+
+<div bind:click="fn2">fn2</div>
+
+<header class="abc-{{name}} sad" style="color: {{color}}; font-size: 12px">
+  <h1 bind:click="fn2">外部 fn2 clickable </h1>
+
+  <h1 bind:click="fn1">外部  fn1 clickable </h1>
 </header>
+
+<component-a message="{{message}}" class="component-a" bindclick="{{utils.sing}}">
+  <tiny-view slot="slot-{{slot}}">a's slot {{slot}}</tiny-view>
+</component-a>
+
+<global-a>
+  <tiny-view>global's slot {{slot}}</tiny-view>
+</global-a>
+
 
 <p wx:if="{{message === 'abc'}}">{{ message }}</p>
 <p wx:else>No message.</p>
 
 <tiny-view hidden="{{hide}}" wx:for="{{[zero,1,2,3]}}">{{item}}</tiny-view>
 <tiny-view wx:for="{{list}}" wx:for-index="idx" wx:key="*this"> {{idx}} : {{item}}</tiny-view>
-
-<component-a message="{{message}}" class="component-a" bindclick="{{utils.sing}}">
-  <tiny-view slot="{{slot}}">a's slot {{slot}}</tiny-view>
-</component-a>
-
-<global-a>
-  <tiny-view slot="abc">global's slot {{slot}}</tiny-view>
-</global-a>
 
 <block wx:for="{{list}}" wx:key="*this"> 
   <tiny-view>dsa</tiny-view>

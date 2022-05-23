@@ -1,7 +1,7 @@
 import { isDef, isUndef } from 'shared/util';
 import { updateListeners } from 'core/vdom/helpers/index';
 import { isIE, isFF, supportsPassive, isUsingMicroTask } from 'core/util/index';
-import { currentFlushTimestamp } from 'core/observer/scheduler';
+import { currentFlushTimestamp } from 'core/scheduler';
 import { emptyNode } from 'core/vdom/patch';
 
 let target;

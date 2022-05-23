@@ -13,7 +13,6 @@
 
 import { isTextInputType } from 'web/util/element';
 import config from '../config';
-import { traverse } from '../observer/traverse';
 import { activeInstance } from '../instance/lifecycle';
 import {
   warn,
@@ -29,7 +28,7 @@ import { registerRef } from './modules/ref';
 
 export const emptyNode = new VNode('', {}, []);
 
-const hooks = ['create', 'activate', 'update', 'remove', 'destroy'];
+const hooks = ['create', 'update', 'remove', 'destroy'];
 
 function sameVnode(a, b) {
   return (
@@ -177,8 +176,6 @@ export function createPatchFunction(backend) {
   function createComponent(vnode, insertedVnodeQueue, parentElm, refElm) {
     let i = vnode.data;
     if (isDef(i)) {
-      const isReactivated = isDef(vnode.componentInstance) && i.keepAlive;
-
       if (isDef(i = i.hook) && isDef(i = i.init)) {
         i(vnode, false /* hydrating */);
       }
@@ -190,10 +187,6 @@ export function createPatchFunction(backend) {
         initComponent(vnode, insertedVnodeQueue);
 
         insert(parentElm, vnode.elm, refElm);
-
-        if (isTrue(isReactivated)) {
-          reactivateComponent(vnode, insertedVnodeQueue, parentElm, refElm);
-        }
 
         return true;
       }
@@ -218,28 +211,6 @@ export function createPatchFunction(backend) {
       // make sure to invoke the insert hook
       insertedVnodeQueue.push(vnode);
     }
-  }
-
-  function reactivateComponent(vnode, insertedVnodeQueue, parentElm, refElm) {
-    let i;
-    // hack for #4339: a reactivated component with inner transition
-    // does not trigger because the inner node's created hooks are not called
-    // again. It's not ideal to involve module-specific logic in here but
-    // there doesn't seem to be a better way to do it.
-    let innerNode = vnode;
-    while (innerNode.componentInstance) {
-      innerNode = innerNode.componentInstance._vnode;
-      if (isDef(i = innerNode.data) && isDef(i = i.transition)) {
-        for (i = 0; i < cbs.activate.length; ++i) {
-          cbs.activate[i](emptyNode, innerNode);
-        }
-        insertedVnodeQueue.push(innerNode);
-        break;
-      }
-    }
-    // unlike a newly created component,
-    // a reactivated keep-alive component doesn't insert itself
-    insert(parentElm, vnode.elm, refElm);
   }
 
   function insert(parent, elm, ref) {
@@ -565,115 +536,7 @@ export function createPatchFunction(backend) {
     }
   }
 
-  let hydrationBailed = false;
-  // list of modules that can skip create hook during hydration because they
-  // are already rendered on the client or has no need for initialization
-  // Note: style is excluded because it relies on initial clone for future
-  // deep updates (#7063).
-  const isRenderedModule = makeMap('attrs,class,staticClass,staticStyle,key');
-
-  // Note: this is a browser-only function so we can assume elms are DOM nodes.
-  function hydrate(elm, vnode, insertedVnodeQueue, inVPre) {
-    let i;
-    const { tag, data, children } = vnode;
-    inVPre = inVPre || (data && data.pre);
-    vnode.elm = elm;
-
-    // assert node match
-    if (process.env.NODE_ENV !== 'production') {
-      if (!assertNodeMatch(elm, vnode, inVPre)) {
-        return false;
-      }
-    }
-    if (isDef(data)) {
-      if (isDef(i = data.hook) && isDef(i = i.init)) i(vnode, true /* hydrating */);
-      if (isDef(i = vnode.componentInstance)) {
-        // child component. it should have hydrated its own tree.
-        initComponent(vnode, insertedVnodeQueue);
-        return true;
-      }
-    }
-    if (isDef(tag)) {
-      if (isDef(children)) {
-        // empty element, allow client to pick up and populate children
-        if (!elm.hasChildNodes()) {
-          createChildren(vnode, children, insertedVnodeQueue);
-        } else {
-          // v-html and domProps: innerHTML
-          if (isDef(i = data) && isDef(i = i.domProps) && isDef(i = i.innerHTML)) {
-            if (i !== elm.innerHTML) {
-              /* istanbul ignore if */
-              if (process.env.NODE_ENV !== 'production'
-                && typeof console !== 'undefined'
-                && !hydrationBailed
-              ) {
-                hydrationBailed = true;
-                console.warn('Parent: ', elm);
-                console.warn('server innerHTML: ', i);
-                console.warn('client innerHTML: ', elm.innerHTML);
-              }
-              return false;
-            }
-          } else {
-            // iterate and compare children lists
-            let childrenMatch = true;
-            let childNode = elm.firstChild;
-            for (let i = 0; i < children.length; i++) {
-              if (!childNode || !hydrate(childNode, children[i], insertedVnodeQueue, inVPre)) {
-                childrenMatch = false;
-                break;
-              }
-              childNode = childNode.nextSibling;
-            }
-            // if childNode is not null, it means the actual childNodes list is
-            // longer than the virtual children list.
-            if (!childrenMatch || childNode) {
-              /* istanbul ignore if */
-              if (process.env.NODE_ENV !== 'production'
-                && typeof console !== 'undefined'
-                && !hydrationBailed
-              ) {
-                hydrationBailed = true;
-                console.warn('Parent: ', elm);
-                console.warn('Mismatching childNodes vs. VNodes: ', elm.childNodes, children);
-              }
-              return false;
-            }
-          }
-        }
-      }
-      if (isDef(data)) {
-        let fullInvoke = false;
-        for (const key in data) {
-          if (!isRenderedModule(key)) {
-            fullInvoke = true;
-            invokeCreateHooks(vnode, insertedVnodeQueue);
-            break;
-          }
-        }
-        if (!fullInvoke && data.class) {
-          // ensure collecting deps for deep class bindings for future updates
-          traverse(data.class);
-        }
-      }
-    } else if (elm.data !== vnode.text) {
-      elm.data = vnode.text;
-    }
-    return true;
-  }
-
-  function assertNodeMatch(node, vnode, inVPre) {
-    if (isDef(vnode.tag)) {
-      return vnode.tag.indexOf('vue-component') === 0 || (
-        !isUnknownElement(vnode, inVPre)
-        && vnode.tag.toLowerCase() === (node.tagName && node.tagName.toLowerCase())
-      );
-    } else {
-      return node.nodeType === (vnode.isComment ? 8 : 3);
-    }
-  }
-
-  return function patch(oldVnode, vnode, hydrating, removeOnly) {
+  return function patch(oldVnode, vnode, removeOnly) {
     if (isUndef(vnode)) {
       if (isDef(oldVnode)) {
         invokeDestroyHook(oldVnode);

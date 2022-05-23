@@ -2,7 +2,6 @@ import './index.less';
 
 export default {
   name: 'tiny-view',
-  mixins: [],
   render(data, ctx) {
     const _vm = this;
     const h = _vm.$createElement;

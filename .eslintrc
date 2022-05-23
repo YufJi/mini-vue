@@ -22,7 +22,8 @@
     "max-len":"off",
     "import/no-cycle":"off",
     "no-plusplus": "warn",
-    "no-multi-assign": "warn",
-    "prefer-spread":"off"
+    "no-multi-assign": "off",
+    "prefer-spread":"off",
+    "no-new": "off"
   }
 }

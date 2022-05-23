@@ -1,5 +1,3 @@
-import { get } from 'lodash';
-
 /**
  * Check if a string starts with $ or _
  */

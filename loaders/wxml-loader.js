@@ -9,7 +9,11 @@ module.exports = function (source) {
      + `var render = ${render}\n`
      + `var staticRenderFns = [${staticRenderFns}]\n`;
 
+  console.log('code--------');
+  console.log(code);
+  console.log('--------code');
   return `${code}
+
           export { render, staticRenderFns }
           `;
 };

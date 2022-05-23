@@ -15,8 +15,6 @@ export const LIFECYCLE_HOOKS = [
   'updated',
   'beforeDestroy',
   'destroyed',
-  'activated',
-  'deactivated',
   'errorCaptured',
   'serverPrefetch',
 ];

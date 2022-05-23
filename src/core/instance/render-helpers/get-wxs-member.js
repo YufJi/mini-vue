@@ -69,7 +69,7 @@ export function prefix(target, p = true, r) {
   return null;
 }
 
-export default function (fullArgs, isFunction) {
+export function getWxsMember(fullArgs, isFunction) {
   const args = fullArgs.slice(1);
   let ret = fullArgs[0];
   let lastArg;

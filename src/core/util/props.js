@@ -7,7 +7,6 @@ import {
   isPlainObject,
 } from 'shared/util';
 import { warn } from './debug';
-import { observe, toggleObserving, shouldObserve } from '../observer/index';
 
 export function validateProp(
   key,
@@ -35,12 +34,6 @@ export function validateProp(
   // check default value
   if (value === undefined) {
     value = getPropDefaultValue(vm, prop, key);
-    // since the default value is a fresh copy,
-    // make sure to observe it.
-    const prevShouldObserve = shouldObserve;
-    toggleObserving(true);
-    observe(value);
-    toggleObserving(prevShouldObserve);
   }
   if (process.env.NODE_ENV !== 'production') {
     assertProp(prop, key, value, vm, absent);

@@ -1,6 +1,5 @@
 import he from 'he';
 import { extend, cached, no, camelize, hyphenate } from 'shared/util';
-import { isEdge } from 'core/util/env';
 
 import {
   addProp,
@@ -458,7 +457,9 @@ export function addIfCondition(el, condition) {
 function processSlotContent(el) {
   const exp = getAndRemoveAttr(el, 'slot');
 
-  el.slotTarget = exp || 'default';
+  if (exp) {
+    el.slotTarget = exp;
+  }
 }
 
 // handle <slot/> outlets
@@ -520,7 +521,7 @@ function processTemplate(el) {
       // 可以是表达式
       el.templateIs = exp;
       el.templateData = getAndRemoveAttr(el, 'data');
-    } else if (exp = getAndRemoveAttr(el, 'name') && !hasExpression(exp)) {
+    } else if ((exp = getAndRemoveAttr(el, 'name')) && !hasExpression(exp)) {
       // 不可以是表达式
       el.templateDefine = exp;
     }
@@ -574,7 +575,7 @@ function makeAttrsMap(attrs) {
   for (let i = 0, l = attrs.length; i < l; i++) {
     if (
       process.env.NODE_ENV !== 'production'
-      && map[attrs[i].name] && !isEdge
+      && map[attrs[i].name]
     ) {
       warn(`duplicate attribute: ${attrs[i].name}`, attrs[i]);
     }

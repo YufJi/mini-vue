@@ -1,15 +1,5 @@
 import config from '../config';
-import Watcher from '../observer/watcher';
-import Dep, { pushTarget, popTarget } from '../observer/dep';
 import { isUpdatingChildComponent } from './lifecycle';
-
-import {
-  set,
-  del,
-  observe,
-  defineReactive,
-  toggleObserving,
-} from '../observer/index';
 
 import {
   warn,
@@ -53,13 +43,7 @@ export function initState(vm) {
   if (opts.data) {
     initData(vm);
   } else {
-    observe(vm._data = {}, true /* asRootData */);
-  }
-
-  if (opts.computed) initComputed(vm, opts.computed);
-
-  if (opts.watch && opts.watch !== nativeWatch) {
-    initWatch(vm, opts.watch);
+    vm._data = {};
   }
 }
 
@@ -70,10 +54,7 @@ function initProps(vm, propsOptions) {
   // instead of dynamic object key enumeration.
   const keys = vm.$options._propKeys = [];
   const isRoot = !vm.$parent;
-  // root instance props should be converted
-  if (!isRoot) {
-    toggleObserving(false);
-  }
+
   for (const key in propsOptions) {
     keys.push(key);
     const value = validateProp(key, propsOptions, propsData, vm);
@@ -87,7 +68,8 @@ function initProps(vm, propsOptions) {
           vm,
         );
       }
-      defineReactive(props, key, value, () => {
+
+      defineReactive.call(vm, props, key, value, () => {
         if (!isRoot && !isUpdatingChildComponent) {
           warn(
             'Avoid mutating a prop directly since the value will be '
@@ -99,7 +81,7 @@ function initProps(vm, propsOptions) {
         }
       });
     } else {
-      defineReactive(props, key, value);
+      defineReactive.call(vm, props, key, value);
     }
     // static props are already proxied on the component's prototype
     // during Vue.extend(). We only need to proxy props defined at
@@ -108,7 +90,6 @@ function initProps(vm, propsOptions) {
       proxy(vm, '_props', key);
     }
   }
-  toggleObserving(true);
 }
 
 function initData(vm) {
@@ -139,6 +120,8 @@ function initData(vm) {
         );
       }
     }
+
+    // props中的key不代理
     if (props && hasOwn(props, key)) {
       process.env.NODE_ENV !== 'production' && warn(
         `The data property "${key}" is already declared as a prop. `
@@ -149,114 +132,15 @@ function initData(vm) {
       proxy(vm, '_data', key);
     }
   }
-  // observe data
-  observe(data, true /* asRootData */);
 }
 
 export function getData(data, vm) {
-  // #7573 disable dep collection when invoking data getters
-  pushTarget();
   try {
     return data.call(vm, vm);
   } catch (e) {
     handleError(e, vm, 'data()');
     return {};
-  } finally {
-    popTarget();
   }
-}
-
-const computedWatcherOptions = { lazy: true };
-
-function initComputed(vm, computed) {
-  // $flow-disable-line
-  const watchers = vm._computedWatchers = Object.create(null);
-
-  for (const key in computed) {
-    const userDef = computed[key];
-    const getter = typeof userDef === 'function' ? userDef : userDef.get;
-    if (process.env.NODE_ENV !== 'production' && getter == null) {
-      warn(
-        `Getter is missing for computed property "${key}".`,
-        vm,
-      );
-    }
-
-    // create internal watcher for the computed property.
-    watchers[key] = new Watcher(
-      vm,
-      getter || noop,
-      noop,
-      computedWatcherOptions,
-    );
-
-    // component-defined computed properties are already defined on the
-    // component prototype. We only need to define computed properties defined
-    // at instantiation here.
-    if (!(key in vm)) {
-      defineComputed(vm, key, userDef);
-    } else if (process.env.NODE_ENV !== 'production') {
-      if (key in vm.$data) {
-        warn(`The computed property "${key}" is already defined in data.`, vm);
-      } else if (vm.$options.props && key in vm.$options.props) {
-        warn(`The computed property "${key}" is already defined as a prop.`, vm);
-      } else if (vm.$options.methods && key in vm.$options.methods) {
-        warn(`The computed property "${key}" is already defined as a method.`, vm);
-      }
-    }
-  }
-}
-
-export function defineComputed(
-  target,
-  key,
-  userDef,
-) {
-  const shouldCache = true;
-  if (typeof userDef === 'function') {
-    sharedPropertyDefinition.get = shouldCache
-      ? createComputedGetter(key)
-      : createGetterInvoker(userDef);
-    sharedPropertyDefinition.set = noop;
-  } else {
-    sharedPropertyDefinition.get = userDef.get
-      ? shouldCache && userDef.cache !== false
-        ? createComputedGetter(key)
-        : createGetterInvoker(userDef.get)
-      : noop;
-    sharedPropertyDefinition.set = userDef.set || noop;
-  }
-  if (process.env.NODE_ENV !== 'production'
-      && sharedPropertyDefinition.set === noop) {
-    sharedPropertyDefinition.set = function () {
-      warn(
-        `Computed property "${key}" was assigned to but it has no setter.`,
-        this,
-      );
-    };
-  }
-  Object.defineProperty(target, key, sharedPropertyDefinition);
-}
-
-function createComputedGetter(key) {
-  return function computedGetter() {
-    const watcher = this._computedWatchers && this._computedWatchers[key];
-    if (watcher) {
-      if (watcher.dirty) {
-        watcher.evaluate();
-      }
-      if (Dep.target) {
-        watcher.depend();
-      }
-      return watcher.value;
-    }
-  };
-}
-
-function createGetterInvoker(fn) {
-  return function computedGetter() {
-    return fn.call(this, this);
-  };
 }
 
 function initMethods(vm, methods) {
@@ -287,31 +171,6 @@ function initMethods(vm, methods) {
   }
 }
 
-function initWatch(vm, watch) {
-  for (const key in watch) {
-    const handler = watch[key];
-    if (Array.isArray(handler)) {
-      for (let i = 0; i < handler.length; i++) {
-        createWatcher(vm, key, handler[i]);
-      }
-    } else {
-      createWatcher(vm, key, handler);
-    }
-  }
-}
-
-function createWatcher(vm, expOrFn, handler, options) {
-  if (isPlainObject(handler)) {
-    options = handler;
-    handler = handler.handler;
-  }
-  if (typeof handler === 'string') {
-    handler = vm[handler];
-  }
-
-  return vm.$watch(expOrFn, handler, options);
-}
-
 export function stateMixin(Vue) {
   // flow somehow has problems with directly declared definition object
   // when using Object.defineProperty, so we have to procedurally build up
@@ -334,29 +193,51 @@ export function stateMixin(Vue) {
   }
   Object.defineProperty(Vue.prototype, '$data', dataDef);
   Object.defineProperty(Vue.prototype, '$props', propsDef);
+}
 
-  Vue.prototype.$set = set;
-  Vue.prototype.$delete = del;
+export function defineReactive(obj, key, val, customSetter) {
+  const vm = this;
+  const property = Object.getOwnPropertyDescriptor(obj, key);
 
-  Vue.prototype.$watch = function (expOrFn, cb, options) {
-    const vm = this;
-    if (isPlainObject(cb)) {
-      return createWatcher(vm, expOrFn, cb, options);
-    }
-    options = options || {};
-    options.user = true;
+  if (property && property.configurable === false) {
+    return;
+  }
 
-    const watcher = new Watcher(vm, expOrFn, cb, options);
+  // cater for pre-defined getter/setters
+  const getter = property && property.get;
+  const setter = property && property.set;
+  if ((!getter || setter) && arguments.length === 2) {
+    val = obj[key];
+  }
 
-    if (options.immediate) {
-      const info = `callback for immediate watcher "${watcher.expression}"`;
-      pushTarget();
-      invokeWithErrorHandling(cb, vm, [watcher.value], vm, info);
-      popTarget();
-    }
+  Object.defineProperty(obj, key, {
+    enumerable: true,
+    configurable: true,
+    get: function reactiveGetter() {
+      const value = getter ? getter.call(obj) : val;
 
-    return function unwatchFn() {
-      watcher.teardown();
-    };
-  };
+      return value;
+    },
+    set: function reactiveSetter(newVal) {
+      const value = getter ? getter.call(obj) : val;
+      /* eslint-disable no-self-compare */
+      if (newVal === value || (newVal !== newVal && value !== value)) {
+        return;
+      }
+      /* eslint-enable no-self-compare */
+      if (process.env.NODE_ENV !== 'production' && customSetter) {
+        customSetter();
+      }
+      // #7981: for accessor properties without setter
+      if (getter && !setter) return;
+
+      if (setter) {
+        setter.call(obj, newVal);
+      } else {
+        val = newVal;
+      }
+
+      vm._updateComponent();
+    },
+  });
 }

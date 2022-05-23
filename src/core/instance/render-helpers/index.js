@@ -9,8 +9,9 @@ import { renderStatic, markOnce } from './render-static';
 import { bindObjectListeners } from './bind-object-listeners';
 import { resolveScopedSlots } from './resolve-scoped-slots';
 import { bindDynamicKeys, prependModifier } from './bind-dynamic-keys';
-import getWxsMember from './get-wxs-member';
-import getLooseDataMember from './get-loose-data-member';
+import { getWxsMember } from './get-wxs-member';
+import { getLooseDataMember } from './get-loose-data-member';
+import { renderTemplate } from './render-template';
 
 export function installRenderHelpers(target) {
   target._n = toNumber;
@@ -20,6 +21,8 @@ export function installRenderHelpers(target) {
   target._m = renderStatic;
   target._v = createTextVNode;
   target._e = createEmptyVNode;
+  target._u = resolveScopedSlots;
+  target.$renderTemplate = renderTemplate;
   target.$getWxsMember = getWxsMember;
   target.$getLooseDataMember = getLooseDataMember;
   // _x, _a 作为保留字面量

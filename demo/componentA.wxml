@@ -1,18 +1,24 @@
 
 <header>
-  <h1>I'm a template!</h1>
+  <h1>start I'm COM A!</h1>
 </header>
 
-<span bindclick="fn1">click， i am com A {{message}}</span>
+<div>adasdfa</div>
+
+<span bindclick="fn1">i am com A {{message}}</span>
 
 <div>
   111
   <span>slot abc:</span>
-  <slot name="abc"></slot>
+  <slot name="slot-abc"></slot>
 </div>
 
 <div>
   222
   <span>slot abcd:</span>
-  <slot name="abcd"></slot>
+  <slot name="slot-abcd"></slot>
 </div>
+
+<header>
+  <h1>end I'm COM A!</h1>
+</header>

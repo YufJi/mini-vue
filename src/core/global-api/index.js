@@ -1,8 +1,6 @@
 import { ASSET_TYPES } from 'shared/constants';
-import { observe } from 'core/observer/index';
 
 import config from '../config';
-import { set, del } from '../observer/index';
 import builtInComponents from '../components/index';
 import { initUse } from './use';
 import { initMixin } from './mixin';
@@ -40,15 +38,7 @@ export function initGlobalAPI(Vue) {
     defineReactive,
   };
 
-  Vue.set = set;
-  Vue.delete = del;
   Vue.nextTick = nextTick;
-
-  // 2.6 explicit observable API
-  Vue.observable = (obj) => {
-    observe(obj);
-    return obj;
-  };
 
   Vue.options = Object.create(null);
   ASSET_TYPES.forEach((type) => {

@@ -5,7 +5,6 @@ import { initRender } from './render';
 import { initEvents } from './events';
 import { mark, measure } from '../util/perf';
 import { initLifecycle, callHook } from './lifecycle';
-import { initProvide, initInjections } from './inject';
 import { extend, mergeOptions, formatComponentName } from '../util/index';
 
 let uid = 0;
@@ -52,9 +51,7 @@ export function initMixin(Vue) {
     initEvents(vm);
     initRender(vm);
     callHook(vm, 'beforeCreate');
-    initInjections(vm); // resolve injections before data/props
     initState(vm);
-    initProvide(vm); // resolve provide after data/props
     callHook(vm, 'created');
 
     /* istanbul ignore if */

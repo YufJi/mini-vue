@@ -1,11 +1,9 @@
+import { forOwn, set } from 'lodash';
 import config from '../config';
-import Watcher from '../observer/watcher';
 import { mark, measure } from '../util/perf';
 import { createEmptyVNode } from '../vdom/vnode';
 import { updateComponentListeners } from './events';
 import { resolveSlots } from './render-helpers/resolve-slots';
-import { toggleObserving } from '../observer/index';
-import { pushTarget, popTarget } from '../observer/dep';
 
 import {
   warn,
@@ -15,6 +13,7 @@ import {
   validateProp,
   invokeWithErrorHandling,
 } from '../util/index';
+import { queueUpdater } from '../scheduler';
 
 export let activeInstance = null;
 export let isUpdatingChildComponent = false;
@@ -45,7 +44,6 @@ export function initLifecycle(vm) {
   vm.$children = [];
   vm.$refs = {};
 
-  vm._watcher = null;
   vm._inactive = null;
   vm._directInactive = false;
   vm._isMounted = false;
@@ -54,7 +52,42 @@ export function initLifecycle(vm) {
 }
 
 export function lifecycleMixin(Vue) {
-  Vue.prototype._update = function (vnode, hydrating) {
+  Vue.prototype.setData = function (data) {
+    const vm = this;
+
+    forOwn(data, (value, key) => {
+      set(vm, key, value);
+    });
+
+    // update
+    queueUpdater(vm);
+  };
+
+  Vue.prototype._updateComponent = function () {
+    const vm = this;
+    /* istanbul ignore if */
+    if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
+      const name = vm._name;
+      const id = vm._uid;
+      const startTag = `vue-perf-start:${id}`;
+      const endTag = `vue-perf-end:${id}`;
+
+      mark(startTag);
+      const vnode = vm._render();
+      mark(endTag);
+      measure(`vue ${name} render`, startTag, endTag);
+
+      mark(startTag);
+      vm._update(vnode);
+      mark(endTag);
+      measure(`vue ${name} patch`, startTag, endTag);
+    } else {
+      const vnode = vm._render();
+      vm._update(vnode);
+    }
+  };
+
+  Vue.prototype._update = function (vnode) {
     const vm = this;
     const prevEl = vm.$el;
     const prevVnode = vm._vnode;
@@ -64,7 +97,7 @@ export function lifecycleMixin(Vue) {
     // based on the rendering backend used.
     if (!prevVnode) {
       // initial render
-      vm.$el = vm.__patch__(vm.$el, vnode, hydrating, false /* removeOnly */);
+      vm.$el = vm.__patch__(vm.$el, vnode, false /* removeOnly */);
     } else {
       // updates
       vm.$el = vm.__patch__(prevVnode, vnode);
@@ -83,15 +116,12 @@ export function lifecycleMixin(Vue) {
     if (vm.$vnode && vm.$parent && vm.$vnode === vm.$parent._vnode) {
       vm.$parent.$el = vm.$el;
     }
-    // updated hook is called by the scheduler to ensure that children are
-    // updated in a parent's updated hook.
   };
 
   Vue.prototype.$forceUpdate = function () {
     const vm = this;
-    if (vm._watcher) {
-      vm._watcher.update();
-    }
+
+    vm._updateComponent();
   };
 
   Vue.prototype.$destroy = function () {
@@ -106,19 +136,7 @@ export function lifecycleMixin(Vue) {
     if (parent && !parent._isBeingDestroyed && !vm.$options.abstract) {
       remove(parent.$children, vm);
     }
-    // teardown watchers
-    if (vm._watcher) {
-      vm._watcher.teardown();
-    }
-    let i = vm._watchers.length;
-    while (i--) {
-      vm._watchers[i].teardown();
-    }
-    // remove reference from data ob
-    // frozen object may not have observer.
-    if (vm._data.__ob__) {
-      vm._data.__ob__.vmCount--;
-    }
+
     // call the last hook...
     vm._isDestroyed = true;
     // invoke destroy hooks on current rendered tree
@@ -138,70 +156,16 @@ export function lifecycleMixin(Vue) {
   };
 }
 
-export function mountComponent(vm, el, hydrating) {
+export function mountComponent(vm, el) {
   vm.$el = el;
 
   if (!vm.$options.render) {
     vm.$options.render = createEmptyVNode;
-    if (process.env.NODE_ENV !== 'production') {
-      /* istanbul ignore if */
-      if ((vm.$options.template && vm.$options.template.charAt(0) !== '#')
-        || vm.$options.el || el) {
-        warn(
-          'You are using the runtime-only build of Vue where the template '
-          + 'compiler is not available. Either pre-compile the templates into '
-          + 'render functions, or use the compiler-included build.',
-          vm,
-        );
-      } else {
-        warn(
-          'Failed to mount component: template or render function not defined.',
-          vm,
-        );
-      }
-    }
   }
 
   callHook(vm, 'beforeMount');
 
-  let updateComponent;
-  /* istanbul ignore if */
-  if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
-    updateComponent = () => {
-      const name = vm._name;
-      const id = vm._uid;
-      const startTag = `vue-perf-start:${id}`;
-      const endTag = `vue-perf-end:${id}`;
-
-      mark(startTag);
-      const vnode = vm._render();
-      mark(endTag);
-      measure(`vue ${name} render`, startTag, endTag);
-
-      mark(startTag);
-      vm._update(vnode, hydrating);
-      mark(endTag);
-      measure(`vue ${name} patch`, startTag, endTag);
-    };
-  } else {
-    updateComponent = () => {
-      const vnode = vm._render();
-      vm._update(vnode, hydrating);
-    };
-  }
-
-  // we set this to vm._watcher inside the watcher's constructor
-  // since the watcher's initial patch may call $forceUpdate (e.g. inside child
-  // component's mounted hook), which relies on vm._watcher being already defined
-  new Watcher(vm, updateComponent, noop, {
-    before() {
-      if (vm._isMounted && !vm._isDestroyed) {
-        callHook(vm, 'beforeUpdate');
-      }
-    },
-  }, true /* isRenderWatcher */);
-
-  hydrating = false;
+  vm._updateComponent();
 
   // manually mounted instance, call mounted on self
   // mounted is called for render-created child components in its inserted hook
@@ -220,25 +184,12 @@ export function updateChildComponent(vm, propsData, listeners, parentVnode, rend
   // determine whether component has slot children
   // we need to do this before overwriting $options._renderChildren.
 
-  // check if there are dynamic scopedSlots (hand-written or compiled but with
-  // dynamic slot names). Static scoped slots compiled from template has the
-  // "$stable" marker.
-  const newScopedSlots = parentVnode.data.scopedSlots;
-  const oldScopedSlots = vm.$scopedSlots;
-  const hasDynamicScopedSlot = !!(
-    (newScopedSlots && !newScopedSlots.$stable)
-    || (oldScopedSlots !== emptyObject && !oldScopedSlots.$stable)
-    || (newScopedSlots && vm.$scopedSlots.$key !== newScopedSlots.$key)
-    || (!newScopedSlots && vm.$scopedSlots.$key)
-  );
-
   // Any static slot children from the parent may have changed during parent's
   // update. Dynamic scoped slots may also have changed. In such cases, a forced
   // update is necessary to ensure correctness.
   const needsForceUpdate = !!(
     renderChildren // has new static slots
     || vm.$options._renderChildren // has old static slots
-    || hasDynamicScopedSlot
   );
 
   vm.$options._parentVnode = parentVnode;
@@ -257,7 +208,6 @@ export function updateChildComponent(vm, propsData, listeners, parentVnode, rend
 
   // update props
   if (propsData && vm.$options.props) {
-    toggleObserving(false);
     const props = vm._props;
     const propKeys = vm.$options._propKeys || [];
     for (let i = 0; i < propKeys.length; i++) {
@@ -265,7 +215,7 @@ export function updateChildComponent(vm, propsData, listeners, parentVnode, rend
       const propOptions = vm.$options.props; // wtf flow?
       props[key] = validateProp(key, propOptions, propsData, vm);
     }
-    toggleObserving(true);
+
     // keep a copy of raw propsData
     vm.$options.propsData = propsData;
   }
@@ -287,50 +237,7 @@ export function updateChildComponent(vm, propsData, listeners, parentVnode, rend
   }
 }
 
-function isInInactiveTree(vm) {
-  while (vm && (vm = vm.$parent)) {
-    if (vm._inactive) return true;
-  }
-  return false;
-}
-
-export function activateChildComponent(vm, direct) {
-  if (direct) {
-    vm._directInactive = false;
-    if (isInInactiveTree(vm)) {
-      return;
-    }
-  } else if (vm._directInactive) {
-    return;
-  }
-  if (vm._inactive || vm._inactive === null) {
-    vm._inactive = false;
-    for (let i = 0; i < vm.$children.length; i++) {
-      activateChildComponent(vm.$children[i]);
-    }
-    callHook(vm, 'activated');
-  }
-}
-
-export function deactivateChildComponent(vm, direct) {
-  if (direct) {
-    vm._directInactive = true;
-    if (isInInactiveTree(vm)) {
-      return;
-    }
-  }
-  if (!vm._inactive) {
-    vm._inactive = true;
-    for (let i = 0; i < vm.$children.length; i++) {
-      deactivateChildComponent(vm.$children[i]);
-    }
-    callHook(vm, 'deactivated');
-  }
-}
-
 export function callHook(vm, hook) {
-  // #7573 disable dep collection when invoking lifecycle hooks
-  pushTarget();
   const handlers = vm.$options[hook];
   const info = `${hook} hook`;
   if (handlers) {
@@ -341,5 +248,4 @@ export function callHook(vm, hook) {
   if (vm._hasHookEvent) {
     vm.$emit(`hook:${hook}`);
   }
-  popTarget();
 }

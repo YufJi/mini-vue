@@ -26,9 +26,9 @@ Vue.config.isUnknownElement = isUnknownElement;
 Vue.prototype.__patch__ = inBrowser ? patch : noop;
 
 // public mount method
-Vue.prototype.$mount = function (el, hydrating) {
+Vue.prototype.$mount = function (el) {
   el = el && inBrowser ? query(el) : undefined;
-  return mountComponent(this, el, hydrating);
+  return mountComponent(this, el);
 };
 
 // devtools global hook

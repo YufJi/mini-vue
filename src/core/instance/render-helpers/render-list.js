@@ -8,7 +8,6 @@ export function renderList(val, render) {
   let i;
   let l;
   let keys;
-  let key;
 
   if (Array.isArray(val) || typeof val === 'string') {
     ret = new Array(val.length);
@@ -41,6 +40,8 @@ export function renderList(val, render) {
   if (!isDef(ret)) {
     ret = [];
   }
-  (ret)._isVList = true;
+
+  ret._isVList = true;
+
   return ret;
 }

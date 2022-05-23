@@ -16,34 +16,6 @@ var t = _interopDefault(require('@babel/types'));
 
 var emptyObject = Object.freeze({});
 
-// These helpers produce better VM code in JS engines due to their
-// explicitness and function inlining.
-function isUndef(v) {
-  return v === undefined || v === null;
-}
-
-/**
- * Check if value is primitive.
- */
-function isPrimitive(value) {
-  return (
-    typeof value === 'string'
-    || typeof value === 'number'
-    // $flow-disable-line
-    || typeof value === 'symbol'
-    || typeof value === 'boolean'
-  );
-}
-
-/**
- * Quick object check - this is primarily used to tell
- * objects from primitive values when we know the value
- * is a JSON-compliant type.
- */
-function isObject(obj) {
-  return obj !== null && typeof obj === 'object';
-}
-
 /**
  * Get the raw type string of a value, e.g., [object Object].
  */
@@ -59,14 +31,6 @@ function toRawType(value) {
  */
 function isPlainObject(obj) {
   return _toString.call(obj) === '[object Object]';
-}
-
-/**
- * Check if val is a valid array index.
- */
-function isValidArrayIndex(val) {
-  var n = parseFloat(String(val));
-  return n >= 0 && Math.floor(n) === n && isFinite(val);
 }
 
 /**
@@ -93,27 +57,6 @@ var isBuiltInTag = makeMap('slot', true);
  * Check if an attribute is a reserved attribute.
  */
 var isReservedAttribute = makeMap('key,ref,slot,slot-scope,is');
-
-/**
- * Remove an item from an array.
- */
-function remove(arr, item) {
-  if (arr.length) {
-    var index = arr.indexOf(item);
-    if (index > -1) {
-      return arr.splice(index, 1);
-    }
-  }
-}
-
-/**
- * Check whether an object has the property.
- */
-var ref = Object.prototype;
-var hasOwnProperty = ref.hasOwnProperty;
-function hasOwn(obj, key) {
-  return hasOwnProperty.call(obj, key);
-}
 
 /**
  * Create a cached version of a pure function.
@@ -194,18 +137,6 @@ var isNonPhrasingTag = makeMap(
   + 'optgroup,option,param,rp,rt,source,style,summary,tbody,td,tfoot,th,thead,'
   + 'title,tr,track'
 );
-
-/**
- * Define a property.
- */
-function def(obj, key, val, enumerable) {
-  Object.defineProperty(obj, key, {
-    value: val,
-    enumerable: !!enumerable,
-    writable: true,
-    configurable: true,
-  });
-}
 
 /**
  * unicode letters used for parsing html tags, component names and property paths.
@@ -700,7 +631,6 @@ function repeat(str, n) {
 }
 
 // can we use __proto__?
-var hasProto = '__proto__' in {};
 
 // Browser environment sniffing
 var inBrowser = typeof window !== 'undefined';
@@ -1517,7 +1447,9 @@ function addIfCondition(el, condition) {
 function processSlotContent(el) {
   var exp = getAndRemoveAttr(el, 'slot');
 
-  el.slotTarget = exp || 'default';
+  if (exp) {
+    el.slotTarget = exp;
+  }
 }
 
 // handle <slot/> outlets
@@ -1579,7 +1511,7 @@ function processTemplate(el) {
       // 可以是表达式
       el.templateIs = exp;
       el.templateData = getAndRemoveAttr(el, 'data');
-    } else if (exp = getAndRemoveAttr(el, 'name') && !hasExpression(exp)) {
+    } else if ((exp = getAndRemoveAttr(el, 'name')) && !hasExpression(exp)) {
       // 不可以是表达式
       el.templateDefine = exp;
     }
@@ -1677,6 +1609,7 @@ function optimize(root, options) {
   if (!root) { return; }
   isStaticKey = genStaticKeysCached(options.staticKeys || '');
   isPlatformReservedTag = options.isReservedTag || no;
+
   // first pass: mark all non-static nodes.
   markStatic(root);
   // second pass: mark static roots.
@@ -1730,7 +1663,6 @@ function markStaticRoots(node, isInFor) {
     // For a node to qualify as a static root, it should have children that
     // are not just static text. Otherwise the cost of hoisting out will
     // outweigh the benefits and it's better off to just always render it fresh.
-
     if (node.static && node.children.length && !(
       node.children.length === 1
       && node.children[0].type === 3
@@ -1817,7 +1749,7 @@ function genHandler(handler, state) {
     return ("[" + (handler.map(function (handler) { return genHandler(handler); }).join(',')) + "]");
   }
 
-  return ("_x.$eventBinder(" + (transformExpression(handler.value, state.scope)) + ", " + (JSON.stringify(handler.modifiers)) + ")");
+  return ("_x.eventBinder(" + (transformExpression(handler.value, state.scope)) + ", " + (JSON.stringify(handler.modifiers)) + ")");
 }
 
 var CodegenState = function CodegenState(options) {
@@ -1830,10 +1762,16 @@ var CodegenState = function CodegenState(options) {
   this.onceId = 0;
   this.staticRenderFns = [];
 
-  this.header = [];
-  this.importTplDeps = {};
+  // 引入的wxs
+  this.wxs = [];
+  // 存储自己定义的template
+  this.innerTpls = {};
+  // 存储import的template
+  this.importTplDeps = [];
+  // 存储include的template
   this.includeTplDeps = {};
-  this.importIncludeIndex = 1;
+  this.importIdx = 1;
+  this.includeIdx = 1;
 
   this.rootScope = makeScope();
   this.scope = [this.rootScope];
@@ -1847,7 +1785,7 @@ function makeScope(content) {
   }
 }
 
-var genRenderFn = function (code) { return ("function(_a, _x) {\n  const _vm = this;\n  const _h = _vm.$createElement;\n  const _c = _vm._self._c || _h;\n  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember } = _vm;\n\n  return " + code + "\n}"); };
+var genRenderFn = function (code) { return ("function(_a, _x) {\n  const _c = _x._self._c || _x.$createElement;\n  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember, $renderTemplate } = _x;\n\n  return " + code + "\n}"); };
 
 function generate(
   ast,
@@ -1857,8 +1795,33 @@ function generate(
   // fix #11483, Root level <script> tags should not be rendered.
   var code = ast ? (ast.tag === 'script' ? 'null' : genElement(ast, state)) : '_c("div")';
 
+  var header = [
+    'export const $innerTemplates = {};' ];
+
+  // 生成innerTpl
+  Object.keys(state.innerTpls).forEach(function (key) {
+    var renderFn = state.innerTpls[key];
+    var code = "$innerTemplates['" + key + "'] = " + renderFn;
+    header.push(code);
+  });
+
+  header.push('const $templates = Object.assign({},');
+  // import
+  state.importTplDeps.forEach(function (item) {
+    header.push(("require(\"" + item + "\").$innerTemplates,"));
+  });
+  header.push('$innerTemplates');
+  header.push(');');
+
+  // include
+
+  // 生成wxs
+  state.wxs.forEach(function (item) {
+    header.unshift(item);
+  });
+
   return {
-    header: state.header,
+    header: header,
     render: genRenderFn(code),
     staticRenderFns: state.staticRenderFns,
   };
@@ -1872,7 +1835,11 @@ function genElement(el, state) {
   } else if (el.if && !el.ifProcessed) {
     return genIf(el, state);
   } else if (el.tag === 'template') {
-    return genTemplate();
+    return genTemplate(el, state);
+  } else if (el.tag === 'import') {
+    return genImport(el, state);
+  } else if (el.tag === 'include') {
+    return genInclude();
   } else if (el.tag === 'slot') {
     return genSlot(el, state);
   } else if (el.tag === 'wxs') {
@@ -2109,7 +2076,7 @@ function genWxs(el, state) {
   var module = el.module;
 
   if (src && module) {
-    state.header.push(("const " + module + " = require('" + src + "');"));
+    state.wxs.push(("import " + module + " from '" + src + "';"));
     state.rootScope[module] = 'wxs';
   }
 
@@ -2117,6 +2084,32 @@ function genWxs(el, state) {
 }
 
 function genTemplate(el, state) {
+  var exp;
+  if (exp = el.templateIs) {
+    var is = transformExpression(exp, state.scope);
+    var data = (exp = el.templateData) ? transformExpression(exp = el.templateData, state.scope, { forceObject: true }) : '{}';
+
+    return ("$renderTemplate($templates[" + is + "], " + data + ", _x)");
+  } else if (el.templateDefine) {
+    // 拿到children
+    var children = genChildren(el, state, true);
+    var code = "_c('fragment'" + (children ? ("," + children) : '') + ")";
+
+    state.innerTpls[el.templateDefine] = genRenderFn(code);
+
+    return '_e()';
+  }
+}
+
+function genImport(el, state) {
+  if (el.src) {
+    state.importTplDeps.push(el.src);
+  }
+
+  return '_e()';
+}
+
+function genInclude(el, state) {
   return '_e()';
 }
 
@@ -2528,333 +2521,6 @@ var createCompiler = createCompilerCreator(function (template, options) {
   };
 });
 
-var uid = 0;
-
-/**
- * A dep is an observable that can have multiple
- * directives subscribing to it.
- */
-var Dep = function Dep() {
-  this.id = uid++;
-  this.subs = [];
-};
-
-Dep.prototype.addSub = function addSub (sub) {
-  this.subs.push(sub);
-};
-
-Dep.prototype.removeSub = function removeSub (sub) {
-  remove(this.subs, sub);
-};
-
-Dep.prototype.depend = function depend () {
-  if (Dep.target) {
-    Dep.target.addDep(this);
-  }
-};
-
-Dep.prototype.notify = function notify () {
-  // stabilize the subscriber list first
-  var subs = this.subs.slice();
-  if (process.env.NODE_ENV !== 'production' && !config.async) {
-    // subs aren't sorted in scheduler if not running async
-    // we need to sort them now to make sure they fire in correct
-    // order
-    subs.sort(function (a, b) { return a.id - b.id; });
-  }
-  for (var i = 0, l = subs.length; i < l; i++) {
-    subs[i].update();
-  }
-};
-
-// The current target watcher being evaluated.
-// This is globally unique because only one watcher
-// can be evaluated at a time.
-Dep.target = null;
-
-var VNode = function VNode(tag, data, children, text, elm, context, componentOptions) {
-  this.tag = tag;
-  this.data = data;
-  this.children = children;
-  this.text = text;
-  this.elm = elm;
-  this.ns = undefined;
-  this.context = context;
-  this.fnContext = undefined;
-  this.fnOptions = undefined;
-  this.fnScopeId = undefined;
-  this.key = data && data.key;
-  this.componentOptions = componentOptions;
-  this.componentInstance = undefined;
-  this.parent = undefined;
-  this.raw = false;
-  this.isStatic = false;
-  this.isRootInsert = true;
-  this.isComment = false;
-  this.isCloned = false;
-  this.isOnce = false;
-};
-
-var prototypeAccessors = { child: { configurable: true } };
-
-// DEPRECATED: alias for componentInstance for backwards compat.
-/* istanbul ignore next */
-prototypeAccessors.child.get = function () {
-  return this.componentInstance;
-};
-
-Object.defineProperties( VNode.prototype, prototypeAccessors );
-
-/*
- * not type checking this file because flow doesn't play well with
- * dynamically accessing methods on Array prototype
- */
-
-var arrayProto = Array.prototype;
-var arrayMethods = Object.create(arrayProto);
-
-var methodsToPatch = [
-  'push',
-  'pop',
-  'shift',
-  'unshift',
-  'splice',
-  'sort',
-  'reverse' ];
-
-/**
- * Intercept mutating methods and emit events
- */
-methodsToPatch.forEach(function (method) {
-  // cache original method
-  var original = arrayProto[method];
-  def(arrayMethods, method, function mutator() {
-    var args = [], len = arguments.length;
-    while ( len-- ) args[ len ] = arguments[ len ];
-
-    var result = original.apply(this, args);
-    var ob = this.__ob__;
-    var inserted;
-    switch (method) {
-      case 'push':
-      case 'unshift':
-        inserted = args;
-        break;
-      case 'splice':
-        inserted = args.slice(2);
-        break;
-    }
-    if (inserted) { ob.observeArray(inserted); }
-    // notify change
-    ob.dep.notify();
-    return result;
-  });
-});
-
-var arrayKeys = Object.getOwnPropertyNames(arrayMethods);
-
-/**
- * Observer class that is attached to each observed
- * object. Once attached, the observer converts the target
- * object's property keys into getter/setters that
- * collect dependencies and dispatch updates.
- */
-var Observer = function Observer(value) {
-  this.value = value;
-  this.dep = new Dep();
-  this.vmCount = 0;
-  def(value, '__ob__', this);
-  if (Array.isArray(value)) {
-    if (hasProto) {
-      protoAugment(value, arrayMethods);
-    } else {
-      copyAugment(value, arrayMethods, arrayKeys);
-    }
-    this.observeArray(value);
-  } else {
-    this.walk(value);
-  }
-};
-
-/**
- * Walk through all properties and convert them into
- * getter/setters. This method should only be called when
- * value type is Object.
- */
-Observer.prototype.walk = function walk (obj) {
-  var keys = Object.keys(obj);
-  for (var i = 0; i < keys.length; i++) {
-    defineReactive(obj, keys[i]);
-  }
-};
-
-/**
- * Observe a list of Array items.
- */
-Observer.prototype.observeArray = function observeArray (items) {
-  for (var i = 0, l = items.length; i < l; i++) {
-    observe(items[i]);
-  }
-};
-
-// helpers
-
-/**
- * Augment a target Object or Array by intercepting
- * the prototype chain using __proto__
- */
-function protoAugment(target, src) {
-  /* eslint-disable no-proto */
-  target.__proto__ = src;
-  /* eslint-enable no-proto */
-}
-
-/**
- * Augment a target Object or Array by defining
- * hidden properties.
- */
-/* istanbul ignore next */
-function copyAugment(target, src, keys) {
-  for (var i = 0, l = keys.length; i < l; i++) {
-    var key = keys[i];
-    def(target, key, src[key]);
-  }
-}
-
-/**
- * Attempt to create an observer instance for a value,
- * returns the new observer if successfully observed,
- * or the existing observer if the value already has one.
- */
-function observe(value, asRootData) {
-  if (!isObject(value) || value instanceof VNode) {
-    return;
-  }
-  var ob;
-  if (hasOwn(value, '__ob__') && value.__ob__ instanceof Observer) {
-    ob = value.__ob__;
-  } else if (
-     (Array.isArray(value) || isPlainObject(value))
-    && Object.isExtensible(value)
-    && !value._isVue
-  ) {
-    ob = new Observer(value);
-  }
-  if (asRootData && ob) {
-    ob.vmCount++;
-  }
-  return ob;
-}
-
-/**
- * Define a reactive property on an Object.
- */
-function defineReactive(obj, key, val, customSetter, shallow) {
-  var dep = new Dep();
-
-  var property = Object.getOwnPropertyDescriptor(obj, key);
-  if (property && property.configurable === false) {
-    return;
-  }
-
-  // cater for pre-defined getter/setters
-  var getter = property && property.get;
-  var setter = property && property.set;
-  if ((!getter || setter) && arguments.length === 2) {
-    val = obj[key];
-  }
-
-  var childOb = !shallow && observe(val);
-  Object.defineProperty(obj, key, {
-    enumerable: true,
-    configurable: true,
-    get: function reactiveGetter() {
-      var value = getter ? getter.call(obj) : val;
-      if (Dep.target) {
-        dep.depend();
-        if (childOb) {
-          childOb.dep.depend();
-          if (Array.isArray(value)) {
-            dependArray(value);
-          }
-        }
-      }
-      return value;
-    },
-    set: function reactiveSetter(newVal) {
-      var value = getter ? getter.call(obj) : val;
-      /* eslint-disable no-self-compare */
-      if (newVal === value || (newVal !== newVal && value !== value)) {
-        return;
-      }
-      /* eslint-enable no-self-compare */
-      if (process.env.NODE_ENV !== 'production' && customSetter) {
-        customSetter();
-      }
-      // #7981: for accessor properties without setter
-      if (getter && !setter) { return; }
-      if (setter) {
-        setter.call(obj, newVal);
-      } else {
-        val = newVal;
-      }
-      childOb = !shallow && observe(newVal);
-      dep.notify();
-    },
-  });
-}
-
-/**
- * Set a property on an object. Adds the new property and
- * triggers change notification if the property doesn't
- * already exist.
- */
-function set(target, key, val) {
-  if (process.env.NODE_ENV !== 'production'
-    && (isUndef(target) || isPrimitive(target))
-  ) {
-    warn$1(("Cannot set reactive property on undefined, null, or primitive value: " + ((target))));
-  }
-  if (Array.isArray(target) && isValidArrayIndex(key)) {
-    target.length = Math.max(target.length, key);
-    target.splice(key, 1, val);
-    return val;
-  }
-  if (key in target && !(key in Object.prototype)) {
-    target[key] = val;
-    return val;
-  }
-  var ob = (target).__ob__;
-  if (target._isVue || (ob && ob.vmCount)) {
-    process.env.NODE_ENV !== 'production' && warn$1(
-      'Avoid adding reactive properties to a Vue instance or its root $data '
-      + 'at runtime - declare it upfront in the data option.'
-    );
-    return val;
-  }
-  if (!ob) {
-    target[key] = val;
-    return val;
-  }
-  defineReactive(ob.value, key, val);
-  ob.dep.notify();
-  return val;
-}
-
-/**
- * Collect dependencies on array elements when the array is touched, since
- * we cannot intercept array element access like property getters.
- */
-function dependArray(value) {
-  for (var e = (void 0), i = 0, l = value.length; i < l; i++) {
-    e = value[i];
-    e && e.__ob__ && e.__ob__.dep.depend();
-    if (Array.isArray(e)) {
-      dependArray(e);
-    }
-  }
-}
-
 /**
  * Option overwriting strategies are functions that handle
  * how to merge a parent option value and a child option
@@ -2882,8 +2548,10 @@ if (process.env.NODE_ENV !== 'production') {
  */
 function mergeData(to, from) {
   if (!from) { return to; }
-  var key; var toVal; var
-    fromVal;
+
+  var key;
+  var toVal;
+  var fromVal;
 
   var keys = hasSymbol
     ? Reflect.ownKeys(from)
@@ -2895,15 +2563,8 @@ function mergeData(to, from) {
     if (key === '__ob__') { continue; }
     toVal = to[key];
     fromVal = from[key];
-    if (!hasOwn(to, key)) {
-      set(to, key, fromVal);
-    } else if (
-      toVal !== fromVal
-      && isPlainObject(toVal)
-      && isPlainObject(fromVal)
-    ) {
-      mergeData(toVal, fromVal);
-    }
+
+    to[key] = fromVal;
   }
   return to;
 }
@@ -2911,11 +2572,7 @@ function mergeData(to, from) {
 /**
  * Data
  */
-function mergeDataOrFn(
-  parentVal,
-  childVal,
-  vm
-) {
+function mergeDataOrFn(parentVal, childVal, vm) {
   if (!vm) {
     // in a Vue.extend merge, both should be functions
     if (!childVal) {
@@ -2953,11 +2610,7 @@ function mergeDataOrFn(
   }
 }
 
-strats.data = function (
-  parentVal,
-  childVal,
-  vm
-) {
+strats.data = function (parentVal, childVal, vm) {
   if (!vm) {
     if (childVal && typeof childVal !== 'function') {
       process.env.NODE_ENV !== 'production' && warn$1(
@@ -2978,10 +2631,7 @@ strats.data = function (
 /**
  * Hooks and props are merged as arrays.
  */
-function mergeHook(
-  parentVal,
-  childVal
-) {
+function mergeHook(parentVal, childVal) {
   var res = childVal
     ? parentVal
       ? parentVal.concat(childVal)
@@ -3015,12 +2665,7 @@ LIFECYCLE_HOOKS.forEach(function (hook) {
  * a three-way merge between constructor options, instance
  * options and parent options.
  */
-function mergeAssets(
-  parentVal,
-  childVal,
-  vm,
-  key
-) {
+function mergeAssets(parentVal, childVal, vm, key) {
   var res = Object.create(parentVal || null);
   if (childVal) {
     process.env.NODE_ENV !== 'production' && assertObjectType(key, childVal, vm);
@@ -3068,12 +2713,7 @@ strats.watch = function (parentVal, childVal, vm, key) {
 /**
  * Other object hashes.
  */
-strats.props =strats.methods =strats.inject =strats.computed = function (
-  parentVal,
-  childVal,
-  vm,
-  key
-) {
+strats.props = strats.methods = strats.inject = strats.computed = function (parentVal, childVal, vm, key) {
   if (childVal && process.env.NODE_ENV !== 'production') {
     assertObjectType(key, childVal, vm);
   }
@@ -3083,7 +2723,6 @@ strats.props =strats.methods =strats.inject =strats.computed = function (
   if (childVal) { extend(ret, childVal); }
   return ret;
 };
-strats.provide = mergeDataOrFn;
 
 /**
  * Default strategy.
@@ -3139,6 +2778,51 @@ if (typeof Promise !== 'undefined' && isNative(Promise)) ; else if (typeof Mutat
   });
 } else if (typeof setImmediate !== 'undefined' && isNative(setImmediate)) ;
 
+if (process.env.NODE_ENV !== 'production') {
+  var perf = inBrowser && window.performance;
+  /* istanbul ignore if */
+  if (
+    perf
+    && perf.mark
+    && perf.measure
+    && perf.clearMarks
+    && perf.clearMeasures
+  ) ;
+}
+
+var VNode = function VNode(tag, data, children, text, elm, context, componentOptions) {
+  this.tag = tag;
+  this.data = data;
+  this.children = children;
+  this.text = text;
+  this.elm = elm;
+  this.ns = undefined;
+  this.context = context;
+  this.fnContext = undefined;
+  this.fnOptions = undefined;
+  this.fnScopeId = undefined;
+  this.key = data && data.key;
+  this.componentOptions = componentOptions;
+  this.componentInstance = undefined;
+  this.parent = undefined;
+  this.raw = false;
+  this.isStatic = false;
+  this.isRootInsert = true;
+  this.isComment = false;
+  this.isCloned = false;
+  this.isOnce = false;
+};
+
+var prototypeAccessors = { child: { configurable: true } };
+
+// DEPRECATED: alias for componentInstance for backwards compat.
+/* istanbul ignore next */
+prototypeAccessors.child.get = function () {
+  return this.componentInstance;
+};
+
+Object.defineProperties( VNode.prototype, prototypeAccessors );
+
 // these are reserved for web because they are directly compiled away
 // during template compilation
 var isReservedAttr = makeMap('style,class');
@@ -3168,7 +2852,7 @@ var isBooleanAttr = makeMap(
 );
 
 var isHTMLTag = makeMap(
-  'html,body,base,head,link,meta,style,title,fragment,'
+  'html,body,base,head,link,meta,style,title,block,fragment'
   + 'address,article,aside,footer,header,h1,h2,h3,h4,h5,h6,hgroup,nav,section,'
   + 'div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,'
   + 'a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,rtc,ruby,'
@@ -3296,9 +2980,9 @@ var baseOptions = {
   staticKeys: genStaticKeys(modules),
 };
 
-var ref$1 = createCompiler(baseOptions);
-var compile = ref$1.compile;
-var compileToFunctions = ref$1.compileToFunctions;
+var ref = createCompiler(baseOptions);
+var compile = ref.compile;
+var compileToFunctions = ref.compileToFunctions;
 
 exports.compile = compile;
 exports.compileToFunctions = compileToFunctions;

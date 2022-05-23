@@ -1,5 +1,5 @@
 import { ASSET_TYPES } from 'shared/constants';
-import { defineComputed, proxy } from '../instance/state';
+import { proxy } from '../instance/state';
 import { extend, mergeOptions, validateComponentName } from '../util/index';
 
 export function initExtend(Vue) {
@@ -48,9 +48,6 @@ export function initExtend(Vue) {
     if (Sub.options.props) {
       initProps(Sub);
     }
-    if (Sub.options.computed) {
-      initComputed(Sub);
-    }
 
     // allow further extension/mixin/plugin usage
     Sub.extend = Super.extend;
@@ -84,12 +81,5 @@ function initProps(Comp) {
   const { props } = Comp.options;
   for (const key in props) {
     proxy(Comp.prototype, '_props', key);
-  }
-}
-
-function initComputed(Comp) {
-  const { computed } = Comp.options;
-  for (const key in computed) {
-    defineComputed(Comp.prototype, key, computed[key]);
   }
 }

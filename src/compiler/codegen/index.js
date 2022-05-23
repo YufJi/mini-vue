@@ -17,10 +17,16 @@ export class CodegenState {
     this.onceId = 0;
     this.staticRenderFns = [];
 
-    this.header = [];
-    this.importTplDeps = {};
+    // 引入的wxs
+    this.wxs = [];
+    // 存储自己定义的template
+    this.innerTpls = {};
+    // 存储import的template
+    this.importTplDeps = [];
+    // 存储include的template
     this.includeTplDeps = {};
-    this.importIncludeIndex = 1;
+    this.importIdx = 1;
+    this.includeIdx = 1;
 
     this.rootScope = makeScope();
     this.scope = [this.rootScope];
@@ -36,10 +42,8 @@ function makeScope(content) {
 }
 
 const genRenderFn = (code) => `function(_a, _x) {
-  const _vm = this;
-  const _h = _vm.$createElement;
-  const _c = _vm._self._c || _h;
-  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember } = _vm;
+  const _c = _x._self._c || _x.$createElement;
+  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember, $renderTemplate } = _x;
 
   return ${code}
 }`;
@@ -52,8 +56,34 @@ export function generate(
   // fix #11483, Root level <script> tags should not be rendered.
   const code = ast ? (ast.tag === 'script' ? 'null' : genElement(ast, state)) : '_c("div")';
 
+  const header = [
+    'export const $innerTemplates = {};',
+  ];
+
+  // 生成innerTpl
+  Object.keys(state.innerTpls).forEach((key) => {
+    const renderFn = state.innerTpls[key];
+    const code = `$innerTemplates['${key}'] = ${renderFn}`;
+    header.push(code);
+  });
+
+  header.push('const $templates = Object.assign({},');
+  // import
+  state.importTplDeps.forEach((item) => {
+    header.push(`require("${item}").$innerTemplates,`);
+  });
+  header.push('$innerTemplates');
+  header.push(');');
+
+  // include
+
+  // 生成wxs
+  state.wxs.forEach((item) => {
+    header.unshift(item);
+  });
+
   return {
-    header: state.header,
+    header,
     render: genRenderFn(code),
     staticRenderFns: state.staticRenderFns,
   };
@@ -68,6 +98,10 @@ export function genElement(el, state) {
     return genIf(el, state);
   } else if (el.tag === 'template') {
     return genTemplate(el, state);
+  } else if (el.tag === 'import') {
+    return genImport(el, state);
+  } else if (el.tag === 'include') {
+    return genInclude(el, state);
   } else if (el.tag === 'slot') {
     return genSlot(el, state);
   } else if (el.tag === 'wxs') {
@@ -310,7 +344,7 @@ function genWxs(el, state) {
   const { src, module } = el;
 
   if (src && module) {
-    state.header.push(`const ${module} = require('${src}');`);
+    state.wxs.push(`import ${module} from '${src}';`);
     state.rootScope[module] = 'wxs';
   }
 
@@ -318,6 +352,32 @@ function genWxs(el, state) {
 }
 
 function genTemplate(el, state) {
+  let exp;
+  if (exp = el.templateIs) {
+    const is = transformExpression(exp, state.scope);
+    const data = (exp = el.templateData) ? transformExpression(exp = el.templateData, state.scope, { forceObject: true }) : '{}';
+
+    return `$renderTemplate($templates[${is}], ${data}, _x)`;
+  } else if (el.templateDefine) {
+    // 拿到children
+    const children = genChildren(el, state, true);
+    const code = `_c('fragment'${children ? `,${children}` : ''})`;
+
+    state.innerTpls[el.templateDefine] = genRenderFn(code);
+
+    return '_e()';
+  }
+}
+
+function genImport(el, state) {
+  if (el.src) {
+    state.importTplDeps.push(el.src);
+  }
+
+  return '_e()';
+}
+
+function genInclude(el, state) {
   return '_e()';
 }
 

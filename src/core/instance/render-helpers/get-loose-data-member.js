@@ -9,7 +9,7 @@ function danger(ret) {
   return false;
 }
 
-export default function (fullArgs, isFunction) {
+export function getLooseDataMember(fullArgs, isFunction) {
   const args = fullArgs.slice(1);
   let ret = fullArgs[0];
   let lastArg;

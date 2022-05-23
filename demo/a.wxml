@@ -1,11 +1,14 @@
 <template name="template-a">
-  <view bind:click="fn2">template a</view>
+  <div bind:click="fn2">start 我是 template a click fn2</div>
 
-  <!-- <slot name="sad"></slot> -->
+  <div wx:for="{{list}}">item: {{item}}</div>
+  <div>{{message}}</div>
+
+   <div bind:click="fn2">end 我是 template a</div>
 </template>
 
 <template name="template-b">
-  <view>template b</view>
+  <div>我是 template b</div>
 
   <!-- <slot name="sad"></slot> -->
 </template>

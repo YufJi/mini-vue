@@ -1,5 +1,12 @@
+
+<header>
+  <h1>I'm a template!</h1>
+</header>
+<p wx:if="message">{{ message }}</p>
+<p wx:else>No message.</p>
+
 <tiny-view>
   <span>i am global com A</span>
 
-  <slot name="abc" wx:for="{{[1,2]}}" ></slot>
+  <slot wx:for="{{[1,2]}}" ></slot>
 </tiny-view>

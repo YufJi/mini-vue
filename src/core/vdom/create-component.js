@@ -1,5 +1,4 @@
 import { resolveConstructorOptions } from 'core/instance/init';
-import { queueActivatedComponent } from 'core/observer/scheduler';
 import VNode from './vnode';
 
 import {
@@ -18,26 +17,14 @@ import {
   callHook,
   activeInstance,
   updateChildComponent,
-  activateChildComponent,
-  deactivateChildComponent,
 } from '../instance/lifecycle';
 
 // inline hooks to be invoked on component VNodes during patch
 const componentVNodeHooks = {
   init(vnode, hydrating) {
-    if (
-      vnode.componentInstance
-      && !vnode.componentInstance._isDestroyed
-      && vnode.data.keepAlive
-    ) {
-      // kept-alive components, treat as a patch
-      const mountedNode = vnode; // work around flow
-      componentVNodeHooks.prepatch(mountedNode, mountedNode);
-    } else {
-      const child = vnode.componentInstance = createComponentInstanceForVnode(vnode, activeInstance);
+    const child = vnode.componentInstance = createComponentInstanceForVnode(vnode, activeInstance);
 
-      child.$mount(hydrating ? vnode.elm : undefined, hydrating);
-    }
+    child.$mount(hydrating ? vnode.elm : undefined);
   },
 
   prepatch(oldVnode, vnode) {
@@ -58,28 +45,12 @@ const componentVNodeHooks = {
       componentInstance._isMounted = true;
       callHook(componentInstance, 'mounted');
     }
-    if (vnode.data.keepAlive) {
-      if (context._isMounted) {
-        // vue-router#1212
-        // During updates, a kept-alive component's child components may
-        // change, so directly walking the tree here may call activated hooks
-        // on incorrect children. Instead we push them into a queue which will
-        // be processed after the whole patch process ended.
-        queueActivatedComponent(componentInstance);
-      } else {
-        activateChildComponent(componentInstance, true /* direct */);
-      }
-    }
   },
 
   destroy(vnode) {
     const { componentInstance } = vnode;
     if (!componentInstance._isDestroyed) {
-      if (!vnode.data.keepAlive) {
-        componentInstance.$destroy();
-      } else {
-        deactivateChildComponent(componentInstance, true /* direct */);
-      }
+      componentInstance.$destroy();
     }
   },
 };
@@ -160,12 +131,6 @@ export function createComponentInstanceForVnode(
     _parentVnode: vnode,
     parent,
   };
-  // check inline-template render functions
-  const { inlineTemplate } = vnode.data;
-  if (isDef(inlineTemplate)) {
-    options.render = inlineTemplate.render;
-    options.staticRenderFns = inlineTemplate.staticRenderFns;
-  }
 
   return new vnode.componentOptions.Ctor(options);
 }

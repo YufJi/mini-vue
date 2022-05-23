@@ -11,11 +11,7 @@ function updateDOMProps(oldVnode, vnode) {
     cur;
   const { elm } = vnode;
   const oldProps = oldVnode.data.domProps || {};
-  let props = vnode.data.domProps || {};
-  // clone observed objects, as the user probably wants to mutate it
-  if (isDef(props.__ob__)) {
-    props = vnode.data.domProps = extend({}, props);
-  }
+  const props = vnode.data.domProps || {};
 
   for (key in oldProps) {
     if (!(key in props)) {

@@ -10,10 +10,11 @@ import {
   capitalize,
   isBuiltInTag,
   isPlainObject,
+  isPrimitive,
+  isUndef,
 } from 'shared/util';
 
 import config from '../config';
-import { set } from '../observer/index';
 import { unicodeRegExp } from './lang';
 import { nativeWatch, hasSymbol } from './env';
 import { warn } from './debug';
@@ -45,8 +46,10 @@ if (process.env.NODE_ENV !== 'production') {
  */
 function mergeData(to, from) {
   if (!from) return to;
-  let key; let toVal; let
-    fromVal;
+
+  let key;
+  let toVal;
+  let fromVal;
 
   const keys = hasSymbol
     ? Reflect.ownKeys(from)
@@ -54,19 +57,10 @@ function mergeData(to, from) {
 
   for (let i = 0; i < keys.length; i++) {
     key = keys[i];
-    // in case the object is already observed...
-    if (key === '__ob__') continue;
     toVal = to[key];
     fromVal = from[key];
-    if (!hasOwn(to, key)) {
-      set(to, key, fromVal);
-    } else if (
-      toVal !== fromVal
-      && isPlainObject(toVal)
-      && isPlainObject(fromVal)
-    ) {
-      mergeData(toVal, fromVal);
-    }
+
+    to[key] = fromVal;
   }
   return to;
 }
@@ -74,11 +68,7 @@ function mergeData(to, from) {
 /**
  * Data
  */
-export function mergeDataOrFn(
-  parentVal,
-  childVal,
-  vm,
-) {
+export function mergeDataOrFn(parentVal, childVal, vm) {
   if (!vm) {
     // in a Vue.extend merge, both should be functions
     if (!childVal) {
@@ -116,11 +106,7 @@ export function mergeDataOrFn(
   }
 }
 
-strats.data = function (
-  parentVal,
-  childVal,
-  vm,
-) {
+strats.data = function (parentVal, childVal, vm) {
   if (!vm) {
     if (childVal && typeof childVal !== 'function') {
       process.env.NODE_ENV !== 'production' && warn(
@@ -141,10 +127,7 @@ strats.data = function (
 /**
  * Hooks and props are merged as arrays.
  */
-function mergeHook(
-  parentVal,
-  childVal,
-) {
+function mergeHook(parentVal, childVal) {
   const res = childVal
     ? parentVal
       ? parentVal.concat(childVal)
@@ -178,12 +161,7 @@ LIFECYCLE_HOOKS.forEach((hook) => {
  * a three-way merge between constructor options, instance
  * options and parent options.
  */
-function mergeAssets(
-  parentVal,
-  childVal,
-  vm,
-  key,
-) {
+function mergeAssets(parentVal, childVal, vm, key) {
   const res = Object.create(parentVal || null);
   if (childVal) {
     process.env.NODE_ENV !== 'production' && assertObjectType(key, childVal, vm);
@@ -231,12 +209,7 @@ strats.watch = function (parentVal, childVal, vm, key) {
 /**
  * Other object hashes.
  */
-strats.props =strats.methods =strats.inject =strats.computed = function (
-  parentVal,
-  childVal,
-  vm,
-  key,
-) {
+strats.props = strats.methods = strats.inject = strats.computed = function (parentVal, childVal, vm, key) {
   if (childVal && process.env.NODE_ENV !== 'production') {
     assertObjectType(key, childVal, vm);
   }
@@ -246,7 +219,6 @@ strats.props =strats.methods =strats.inject =strats.computed = function (
   if (childVal) extend(ret, childVal);
   return ret;
 };
-strats.provide = mergeDataOrFn;
 
 /**
  * Default strategy.
@@ -289,8 +261,9 @@ function normalizeProps(options, vm) {
   const { props } = options;
   if (!props) return;
   const res = {};
-  let i; let val; let
-    name;
+  let i;
+  let val;
+  let name;
   if (Array.isArray(props)) {
     i = props.length;
     while (i--) {
@@ -320,33 +293,6 @@ function normalizeProps(options, vm) {
   options.props = res;
 }
 
-/**
- * Normalize all injections into Object-based format
- */
-function normalizeInject(options, vm) {
-  const { inject } = options;
-  if (!inject) return;
-  const normalized = options.inject = {};
-  if (Array.isArray(inject)) {
-    for (let i = 0; i < inject.length; i++) {
-      normalized[inject[i]] = { from: inject[i] };
-    }
-  } else if (isPlainObject(inject)) {
-    for (const key in inject) {
-      const val = inject[key];
-      normalized[key] = isPlainObject(val)
-        ? extend({ from: key }, val)
-        : { from: val };
-    }
-  } else if (process.env.NODE_ENV !== 'production') {
-    warn(
-      'Invalid value for option "inject": expected an Array or an Object, '
-      + `but got ${toRawType(inject)}.`,
-      vm,
-    );
-  }
-}
-
 function assertObjectType(name, value, vm) {
   if (!isPlainObject(value)) {
     warn(
@@ -371,7 +317,6 @@ export function mergeOptions(parent, child, vm) {
   }
 
   normalizeProps(child, vm);
-  normalizeInject(child, vm);
 
   // Apply extends and mixins on the child options,
   // but only if it is a raw options object that isn't

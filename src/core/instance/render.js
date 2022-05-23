@@ -9,7 +9,6 @@ import {
 import { createElement } from '../vdom/create-element';
 import { installRenderHelpers } from './render-helpers/index';
 import { resolveSlots } from './render-helpers/resolve-slots';
-import { normalizeScopedSlots } from '../vdom/helpers/normalize-scoped-slots';
 import VNode, { createEmptyVNode } from '../vdom/vnode';
 
 import { isUpdatingChildComponent } from './lifecycle';
@@ -21,7 +20,7 @@ export function initRender(vm) {
   const parentVnode = vm.$vnode = options._parentVnode; // the placeholder node in parent tree
   const renderContext = parentVnode && parentVnode.context;
   vm.$slots = resolveSlots(options._renderChildren, renderContext);
-  vm.$scopedSlots = emptyObject;
+
   // bind the createElement fn to this instance
   // so that we get proper render context inside it.
   // args order: tag, data, children, normalizationType, alwaysNormalize
@@ -37,15 +36,15 @@ export function initRender(vm) {
 
   /* istanbul ignore else */
   if (process.env.NODE_ENV !== 'production') {
-    defineReactive(vm, '$attrs', parentData && parentData.attrs || emptyObject, () => {
+    defineReactive.call(vm, vm, '$attrs', parentData && parentData.attrs || emptyObject, () => {
       !isUpdatingChildComponent && warn('$attrs is readonly.', vm);
     }, true);
-    defineReactive(vm, '$listeners', options._parentListeners || emptyObject, () => {
+    defineReactive.call(vm, vm, '$listeners', options._parentListeners || emptyObject, () => {
       !isUpdatingChildComponent && warn('$listeners is readonly.', vm);
     }, true);
   } else {
-    defineReactive(vm, '$attrs', parentData && parentData.attrs || emptyObject, null, true);
-    defineReactive(vm, '$listeners', options._parentListeners || emptyObject, null, true);
+    defineReactive.call(vm, vm, '$attrs', parentData && parentData.attrs || emptyObject, null, true);
+    defineReactive.call(vm, vm, '$listeners', options._parentListeners || emptyObject, null, true);
   }
 }
 
@@ -68,14 +67,6 @@ export function renderMixin(Vue) {
     const vm = this;
     const { render, _parentVnode, name, _componentTag } = vm.$options;
 
-    if (_parentVnode) {
-      vm.$scopedSlots = normalizeScopedSlots(
-        _parentVnode.data.scopedSlots,
-        vm.$slots,
-        vm.$scopedSlots,
-      );
-    }
-
     // set parent vnode. this allows render functions to have access
     // to the data on the placeholder node.
     vm.$vnode = _parentVnode;
@@ -87,10 +78,14 @@ export function renderMixin(Vue) {
       // when parent component is patched.
       currentRenderingInstance = vm;
       // 包一层vnode，用来模拟shadow root
-      vnode = new VNode(name || _componentTag, {}, render.call(vm._renderProxy, { ...vm.$data, ...vm.$props }, {
-        $slots: vm.$slots,
-        $eventBinder: vm.eventBinder,
-      }), undefined, undefined, vm);
+      vnode = new VNode(
+        name || _componentTag,
+        {},
+        render.call(vm._renderProxy, vm, vm),
+        undefined,
+        undefined,
+        vm,
+      );
     } catch (e) {
       handleError(e, vm, 'render');
       // return error render result,

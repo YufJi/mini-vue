@@ -32,11 +32,7 @@ function updateAttrs(oldVnode, vnode) {
   }
 
   const oldAttrs = oldVnode.data.attrs || {};
-  let attrs = vnode.data.attrs || {};
-  // clone observed objects, as the user probably wants to mutate it
-  if (isDef(attrs.__ob__)) {
-    attrs = vnode.data.attrs = extend({}, attrs);
-  }
+  const attrs = vnode.data.attrs || {};
 
   for (key in attrs) {
     cur = attrs[key];

@@ -6,4 +6,4 @@ export * from './debug';
 export * from './props';
 export * from './error';
 export * from './next-tick';
-export { defineReactive } from '../observer/index';
+export { defineReactive } from '../instance/state';
