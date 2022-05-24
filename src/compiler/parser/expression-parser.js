@@ -1,6 +1,3 @@
-// not allow {{x:{y:1}}}
-// or use complex parser
-
 import parser from '@babel/parser';
 import traverse from '@babel/traverse';
 import generate from '@babel/generator';
@@ -9,7 +6,7 @@ import t from '@babel/types';
 export const fullExpressionTagReg = /^\{\{([^`{}]+)\}\}$/;
 export const expressionTagReg = /\{\{([^`{}]+)\}\}/g;
 
-export function escapeString(str) {
+function escapeString(str) {
   return str.replace(/[\\']/g, '\\$&');
 }
 
@@ -154,7 +151,7 @@ const babylonConfig = {
   plugins: ['objectRestSpread'],
 };
 
-export function transformCode(exp, xmlScope, config) {
+function transformCode(exp, xmlScope, config) {
   let codeStr = exp;
 
   if (config.forceObject) {

@@ -1,4 +1,3 @@
-import { forOwn, set } from 'lodash';
 import config from '../config';
 import { mark, measure } from '../util/perf';
 import { createEmptyVNode } from '../vdom/vnode';
@@ -12,8 +11,9 @@ import {
   emptyObject,
   validateProp,
   invokeWithErrorHandling,
+  parseSinglePath,
 } from '../util/index';
-import { queueUpdater } from '../scheduler';
+import { queueUpdater } from '../scheduler/index';
 
 export let activeInstance = null;
 export let isUpdatingChildComponent = false;
@@ -55,9 +55,26 @@ export function lifecycleMixin(Vue) {
   Vue.prototype.setData = function (data) {
     const vm = this;
 
-    forOwn(data, (value, key) => {
-      set(vm, key, value);
-    });
+    for (const key in data) {
+      if (Object.hasOwnProperty.call(data, key)) {
+        const value = data[key];
+        // 解析key
+        const paths = parseSinglePath(key);
+        let parentObj;
+        let curKey;
+        let temp = vm;
+
+        for (let i = 0; i < paths.length; i++) {
+          curKey = paths[i]; // curKey
+          parentObj = temp; // parentObj
+          temp = temp[curKey];
+        }
+
+        if (parentObj) {
+          parentObj[curKey] = value;
+        }
+      }
+    }
 
     // update
     queueUpdater(vm);

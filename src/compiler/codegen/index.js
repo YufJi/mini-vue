@@ -23,10 +23,6 @@ export class CodegenState {
     this.innerTpls = {};
     // 存储import的template
     this.importTplDeps = [];
-    // 存储include的template
-    this.includeTplDeps = {};
-    this.importIdx = 1;
-    this.includeIdx = 1;
 
     this.rootScope = makeScope();
     this.scope = [this.rootScope];
@@ -378,7 +374,12 @@ function genImport(el, state) {
 }
 
 function genInclude(el, state) {
-  return '_e()';
+  let code = '_e()';
+  if (el.src) {
+    code = `require('${el.src}').render(_a, _x)`;
+  }
+
+  return code;
 }
 
 function genProps(props, state) {

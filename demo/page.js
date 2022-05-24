@@ -45,13 +45,6 @@ export const Page = {
     console.log('page mounted', this);
   },
   methods: {
-    // setData(data) {
-    //   const vm = this;
-
-    //   forOwn(data, (value, key) => {
-    //     set(vm, key, value);
-    //   });
-    // },
     eventBinder(method, modifiers) {
       const vm = this;
       const handler = function ($event) {

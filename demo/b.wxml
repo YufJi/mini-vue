@@ -1,2 +1,2 @@
 
-<view>include b</view>
+<tiny-view>include b: {{message}}</tiny-view>

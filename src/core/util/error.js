@@ -27,13 +27,7 @@ export function handleError(err, vm, info) {
   }
 }
 
-export function invokeWithErrorHandling(
-  handler,
-  context,
-  args,
-  vm,
-  info,
-) {
+export function invokeWithErrorHandling(handler, context, args, vm, info) {
   let res;
   try {
     res = args ? handler.apply(context, args) : handler.call(context);

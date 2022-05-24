@@ -5,7 +5,6 @@ Object.defineProperty(exports, '__esModule', { value: true });
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var deindent = _interopDefault(require('de-indent'));
-require('lodash');
 var he = _interopDefault(require('he'));
 var parser = _interopDefault(require('@babel/parser'));
 var traverse = _interopDefault(require('@babel/traverse'));
@@ -137,6 +136,10 @@ var isNonPhrasingTag = makeMap(
   + 'optgroup,option,param,rp,rt,source,style,summary,tbody,td,tfoot,th,thead,'
   + 'title,tr,track'
 );
+
+/**
+ * Check if a string starts with $ or _
+ */
 
 /**
  * unicode letters used for parsing html tags, component names and property paths.
@@ -630,47 +633,6 @@ function repeat(str, n) {
   return result;
 }
 
-// can we use __proto__?
-
-// Browser environment sniffing
-var inBrowser = typeof window !== 'undefined';
-var UA = inBrowser && window.navigator.userAgent.toLowerCase();
-var isIE = UA && /msie|trident/.test(UA);
-var isIE9 = UA && UA.indexOf('msie 9.0') > 0;
-var isEdge = UA && UA.indexOf('edge/') > 0;
-var isAndroid = (UA && UA.indexOf('android') > 0);
-var isIOS = (UA && /iphone|ipad|ipod|ios/.test(UA));
-var isChrome = UA && /chrome\/\d+/.test(UA) && !isEdge;
-var isPhantomJS = UA && /phantomjs/.test(UA);
-var isFF = UA && UA.match(/firefox\/(\d+)/);
-
-// Firefox has a "watch" function on Object.prototype...
-var nativeWatch = ({}).watch;
-
-var supportsPassive = false;
-if (inBrowser) {
-  try {
-    var opts = {};
-    Object.defineProperty(opts, 'passive', ({
-      get: function get() {
-        /* istanbul ignore next */
-        supportsPassive = true;
-      },
-    })); // https://github.com/facebook/flow/issues/285
-    window.addEventListener('test-passive', null, opts);
-  } catch (e) {}
-}
-
-/* istanbul ignore next */
-function isNative(Ctor) {
-  return typeof Ctor === 'function' && /native code/.test(Ctor.toString());
-}
-
-var hasSymbol = typeof Symbol !== 'undefined' && isNative(Symbol)
-  && typeof Reflect !== 'undefined' && isNative(Reflect.ownKeys);
-/* istanbul ignore if */ // $flow-disable-line
-if (typeof Set !== 'undefined' && isNative(Set)) ;
-
 /* eslint-disable no-unused-vars */
 function baseWarn(msg, range) {
   console.error(("[Vue compiler]: " + msg));
@@ -782,8 +744,6 @@ function rangeSetItem(item, range) {
   }
   return item;
 }
-
-// not allow {{x:{y:1}}}
 
 var fullExpressionTagReg = /^\{\{([^`{}]+)\}\}$/;
 var expressionTagReg = /\{\{([^`{}]+)\}\}/g;
@@ -1565,7 +1525,7 @@ function makeAttrsMap(attrs) {
   for (var i = 0, l = attrs.length; i < l; i++) {
     if (
       process.env.NODE_ENV !== 'production'
-      && map[attrs[i].name] && !isEdge
+      && map[attrs[i].name]
     ) {
       warn(("duplicate attribute: " + (attrs[i].name)), attrs[i]);
     }
@@ -1768,10 +1728,6 @@ var CodegenState = function CodegenState(options) {
   this.innerTpls = {};
   // 存储import的template
   this.importTplDeps = [];
-  // 存储include的template
-  this.includeTplDeps = {};
-  this.importIdx = 1;
-  this.includeIdx = 1;
 
   this.rootScope = makeScope();
   this.scope = [this.rootScope];
@@ -1839,7 +1795,7 @@ function genElement(el, state) {
   } else if (el.tag === 'import') {
     return genImport(el, state);
   } else if (el.tag === 'include') {
-    return genInclude();
+    return genInclude(el);
   } else if (el.tag === 'slot') {
     return genSlot(el, state);
   } else if (el.tag === 'wxs') {
@@ -2110,7 +2066,12 @@ function genImport(el, state) {
 }
 
 function genInclude(el, state) {
-  return '_e()';
+  var code = '_e()';
+  if (el.src) {
+    code = "require('" + (el.src) + "').render(_a, _x)";
+  }
+
+  return code;
 }
 
 function genProps(props, state) {
@@ -2146,8 +2107,6 @@ var LIFECYCLE_HOOKS = [
   'updated',
   'beforeDestroy',
   'destroyed',
-  'activated',
-  'deactivated',
   'errorCaptured',
   'serverPrefetch' ];
 
@@ -2521,6 +2480,47 @@ var createCompiler = createCompilerCreator(function (template, options) {
   };
 });
 
+// can we use __proto__?
+
+// Browser environment sniffing
+var inBrowser = typeof window !== 'undefined';
+var UA = inBrowser && window.navigator.userAgent.toLowerCase();
+var isIE = UA && /msie|trident/.test(UA);
+var isIE9 = UA && UA.indexOf('msie 9.0') > 0;
+var isEdge = UA && UA.indexOf('edge/') > 0;
+var isAndroid = (UA && UA.indexOf('android') > 0);
+var isIOS = (UA && /iphone|ipad|ipod|ios/.test(UA));
+var isChrome = UA && /chrome\/\d+/.test(UA) && !isEdge;
+var isPhantomJS = UA && /phantomjs/.test(UA);
+var isFF = UA && UA.match(/firefox\/(\d+)/);
+
+// Firefox has a "watch" function on Object.prototype...
+var nativeWatch = ({}).watch;
+
+var supportsPassive = false;
+if (inBrowser) {
+  try {
+    var opts = {};
+    Object.defineProperty(opts, 'passive', ({
+      get: function get() {
+        /* istanbul ignore next */
+        supportsPassive = true;
+      },
+    })); // https://github.com/facebook/flow/issues/285
+    window.addEventListener('test-passive', null, opts);
+  } catch (e) {}
+}
+
+/* istanbul ignore next */
+function isNative(Ctor) {
+  return typeof Ctor === 'function' && /native code/.test(Ctor.toString());
+}
+
+var hasSymbol = typeof Symbol !== 'undefined' && isNative(Symbol)
+  && typeof Reflect !== 'undefined' && isNative(Reflect.ownKeys);
+/* istanbul ignore if */ // $flow-disable-line
+if (typeof Set !== 'undefined' && isNative(Set)) ;
+
 /**
  * Option overwriting strategies are functions that handle
  * how to merge a parent option value and a child option
@@ -2559,8 +2559,6 @@ function mergeData(to, from) {
 
   for (var i = 0; i < keys.length; i++) {
     key = keys[i];
-    // in case the object is already observed...
-    if (key === '__ob__') { continue; }
     toVal = to[key];
     fromVal = from[key];
 
@@ -2822,6 +2820,30 @@ prototypeAccessors.child.get = function () {
 };
 
 Object.defineProperties( VNode.prototype, prototypeAccessors );
+
+// Async edge case fix requires storing an event listener's attach timestamp.
+var getNow = Date.now;
+
+// Determine what event timestamp the browser is using. Annoyingly, the
+// timestamp can either be hi-res (relative to page load) or low-res
+// (relative to UNIX epoch), so in order to compare time we have to use the
+// same timestamp type when saving the flush timestamp.
+// All IE versions use low-res event timestamps, and have problematic clock
+// implementations (#9632)
+if (inBrowser && !isIE) {
+  var performance = window.performance;
+  if (
+    performance
+    && typeof performance.now === 'function'
+    && getNow() > document.createEvent('Event').timeStamp
+  ) {
+    // if the event timestamp, although evaluated AFTER the Date.now(), is
+    // smaller than it, it means the event is using a hi-res timestamp,
+    // and we need to use the hi-res version for event listener timestamps as
+    // well.
+    getNow = function () { return performance.now(); };
+  }
+}
 
 // these are reserved for web because they are directly compiled away
 // during template compilation

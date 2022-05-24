@@ -1,5 +1,3 @@
-import { forOwn, set } from 'lodash';
-
 import * as templateA from './componentA.wxml';
 
 // 页面组件
@@ -38,7 +36,12 @@ export const ComponentA = {
         if (modifiers.stop) {
           $event.stopPropagation();
         }
-        vm[method].call(vm, ...arguments);
+
+        if (typeof method === 'string') {
+          vm[method].call(vm, $event);
+        } else if (typeof method === 'function') {
+          method.call(null, $event);
+        }
       };
       handler.displayName = method;
       return handler;

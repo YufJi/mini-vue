@@ -338,3 +338,72 @@ export function once(fn) {
     }
   };
 }
+
+export function parseSinglePath(path, state) {
+  state = state || { length: path.length, index: 0 };
+
+  const paths = [parseIdent(path, state)];
+  while (state.index < state.length) {
+    const ch = path[state.index];
+    if (ch === '[') {
+      state.index++;
+      paths.push(parseArrIndex(path, state));
+      const nextCh = path[state.index];
+      if (nextCh !== ']') throwParsingError(path, state.index);
+      state.index++;
+    } else if (ch === '.') {
+      state.index++;
+      paths.push(parseIdent(path, state));
+    } else {
+      break;
+    }
+  }
+  return paths;
+}
+
+function parseArrIndex(path, state) {
+  const startIndex = state.index;
+  while (state.index < state.length) {
+    const ch = path[state.index];
+    if (/^[0-9]/.test(ch)) {
+      state.index++;
+      continue;
+    }
+    break;
+  }
+  if (startIndex === state.index) {
+    throwParsingError(path, state.index);
+  }
+  return parseInt(path.slice(startIndex, state.index), 10);
+}
+
+function parseIdent(path, state) {
+  const startIndex = state.index;
+  const ch = path[startIndex];
+  if (/^[_a-zA-Z$]/.test(ch)) {
+    state.index++;
+    while (state.index < state.length) {
+      const ch = path[state.index];
+      if (/^[_a-zA-Z0-9$]/.test(ch)) {
+        state.index++;
+        continue;
+      }
+      break;
+    }
+  } else {
+    throwParsingError(path, state.index);
+  }
+  return path.slice(startIndex, state.index);
+}
+
+function throwParsingError(path, index) {
+  throw new Error(
+    `Parsing data path "${
+      path
+    }" failed at char "${
+      path[index]
+    }" (index ${
+      index
+    })`,
+  );
+}

@@ -91,6 +91,7 @@ function flushSchedulerQueue() {
     has[id] = null;
 
     vm._updateComponent();
+    // 更新结束
 
     // in dev build, check and stop circular updates.
     if (process.env.NODE_ENV !== 'production' && has[id] != null) {
