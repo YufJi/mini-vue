@@ -27,10 +27,7 @@ Vue.prototype.setData = function (data) {
   };
 ```
 
-# 笔记
-wxml语法注意
+# 后续计划
 
-- template不能包含template，被包含的不会渲染
-- template中不支持slot
-- template支持wx:for wx:if等
+- [] 将[tiny-v1](https://github.com/YufJi/tiny-v1)中的渲染层替换掉
 
