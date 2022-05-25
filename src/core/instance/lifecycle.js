@@ -138,7 +138,7 @@ export function lifecycleMixin(Vue) {
   Vue.prototype.$forceUpdate = function () {
     const vm = this;
 
-    vm._updateComponent();
+    queueUpdater(vm);
   };
 
   Vue.prototype.$destroy = function () {

@@ -15,6 +15,7 @@ import {
   isReservedAttribute,
   invokeWithErrorHandling,
 } from '../util/index';
+import { queueUpdater } from '../scheduler';
 
 const sharedPropertyDefinition = {
   enumerable: true,
@@ -237,7 +238,7 @@ export function defineReactive(obj, key, val, customSetter) {
         val = newVal;
       }
 
-      vm._updateComponent();
+      queueUpdater(vm);
     },
   });
 }
