@@ -1,8 +1,7 @@
 import he from 'he';
-import { extend, cached, no, camelize, hyphenate } from 'shared/util';
+import { extend, cached, no, camelize, hyphenate } from 'shared/util/index';
 
 import {
-  addProp,
   addAttr,
   baseWarn,
   addHandler,
@@ -22,8 +21,6 @@ const eventRE = /^(capture-)?(bind|catch):?([A-Za-z_][A-Za-z0-9_]+)$/;
 
 const decodeHTMLCached = cached(he.decode);
 
-export const emptySlotScopeToken = '_empty_';
-
 // configurable state
 export let warn;
 
@@ -31,7 +28,6 @@ let transforms;
 let preTransforms;
 let postTransforms;
 let platformIsPreTag;
-let platformMustUseProp;
 let platformGetTagNamespace;
 
 export function createASTElement(tag, attrs, parent) {
@@ -53,7 +49,6 @@ export function parse(template, options) {
   warn = options.warn || baseWarn;
 
   platformIsPreTag = options.isPreTag || no;
-  platformMustUseProp = options.mustUseProp || no;
   platformGetTagNamespace = options.getTagNamespace || no;
 
   preTransforms = pluckModuleFunction(options.modules, 'preTransformNode');
@@ -558,14 +553,9 @@ function processAttrs(el) {
         modifiers.capture = capture;
       }
 
-      addHandler(el, eventName, value, modifiers, false, warn, list[i]);
+      addHandler(el, eventName, value, modifiers, warn, list[i]);
     } else {
       addAttr(el, name, value, list[i]);
-      // #6887 firefox doesn't update muted state if set via attribute
-      // even immediately after element creation
-      if (name === 'muted' && platformMustUseProp(el.tag, el.attrsMap.type, name)) {
-        addProp(el, name, 'true', list[i]);
-      }
     }
   }
 }

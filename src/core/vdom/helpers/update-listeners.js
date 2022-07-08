@@ -7,7 +7,7 @@ import {
   isUndef,
   isTrue,
   isPlainObject,
-} from 'shared/util';
+} from 'shared/util/index';
 
 const normalizeEvent = cached((name) => {
   const passive = name.charAt(0) === '&';
@@ -41,12 +41,13 @@ export function createFnInvoker(fns, vm) {
   return invoker;
 }
 
-export function updateListeners(on, oldOn, add, remove, createOnceHandler, vm) {
+export function updateListeners(target, on, oldOn, add, remove, createOnceHandler, vm) {
   let name;
   let def;
   let cur;
   let old;
   let event;
+
   for (name in on) {
     def = cur = on[name];
     old = oldOn[name];
@@ -62,9 +63,10 @@ export function updateListeners(on, oldOn, add, remove, createOnceHandler, vm) {
         cur = on[name] = createFnInvoker(cur, vm);
       }
       if (isTrue(event.once)) {
-        cur = on[name] = createOnceHandler(event.name, cur, event.capture);
+        cur = on[name] = createOnceHandler(target, event.name, cur, event.capture);
       }
-      add(event.name, cur, event.capture, event.passive, event.params);
+
+      add(target, event.name, cur, event.capture, event.passive, event.params);
     } else if (cur !== old) {
       old.fns = cur;
       on[name] = old;
@@ -73,7 +75,7 @@ export function updateListeners(on, oldOn, add, remove, createOnceHandler, vm) {
   for (name in oldOn) {
     if (isUndef(on[name])) {
       event = normalizeEvent(name);
-      remove(event.name, oldOn[name], event.capture);
+      remove(target, event.name, oldOn[name], event.capture);
     }
   }
 }

@@ -19,9 +19,5 @@ function genHandler(handler, state) {
     return 'function(){}';
   }
 
-  if (Array.isArray(handler)) {
-    return `[${handler.map((handler) => genHandler(handler)).join(',')}]`;
-  }
-
-  return `_x.eventBinder(${transformExpression(handler.value, state.scope)}, ${JSON.stringify(handler.modifiers)})`;
+  return `_x.$eventBinder(${transformExpression(handler.value, state.scope)}, ${JSON.stringify(handler.modifiers)})`;
 }

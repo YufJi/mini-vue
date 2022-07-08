@@ -1,5 +1,3 @@
-import { forOwn, set } from 'lodash';
-
 import { ComponentA } from './componentA';
 import * as pageTemplate from './page.wxml';
 
@@ -45,23 +43,8 @@ export const Page = {
     console.log('page mounted', this);
   },
   methods: {
-    eventBinder(method, modifiers) {
-      const vm = this;
-      const handler = function ($event) {
-        if (modifiers.stop) {
-          $event.stopPropagation();
-        }
-
-        if (typeof method === 'string') {
-          vm[method].call(vm, $event);
-        } else if (typeof method === 'function') {
-          method.call(null, $event);
-        }
-      };
-      handler.displayName = method;
-      return handler;
-    },
     fn1(event) {
+      console.log('event is:', event);
       this.setData({
         name: 'xhq',
         color: 'yellow',
@@ -73,6 +56,7 @@ export const Page = {
       console.log('fn1');
     },
     fn2(event) {
+      console.log('event is:', event);
       this.setData({
         message: 'xx',
         'list[3]': 888,

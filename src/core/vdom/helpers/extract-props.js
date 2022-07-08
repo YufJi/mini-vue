@@ -7,11 +7,7 @@ import {
   formatComponentName,
 } from 'core/util/index';
 
-export function extractPropsFromVNodeData(
-  data,
-  Ctor,
-  tag,
-) {
+export function extractPropsFromVNodeData(data, Ctor, tag) {
   // we are only extracting raw values here.
   // validation and default values are handled in the child
   // component itself.
@@ -47,13 +43,7 @@ export function extractPropsFromVNodeData(
   return res;
 }
 
-function checkProp(
-  res,
-  hash,
-  key,
-  altKey,
-  preserve,
-) {
+function checkProp(res, hash, key, altKey, preserve) {
   if (isDef(hash)) {
     if (hasOwn(hash, key)) {
       res[key] = hash[key];

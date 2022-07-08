@@ -1,9 +1,14 @@
-import { isDef, isObject } from 'shared/util';
+import {
+  isDef,
+  isUndef,
+  isObject,
+} from 'shared/util/index';
 
-export function genClassForVnode(vnode) {
+function genClassForVnode(vnode) {
   let { data } = vnode;
   let parentNode = vnode;
   let childNode = vnode;
+
   while (isDef(childNode.componentInstance)) {
     childNode = childNode.componentInstance._vnode;
     if (childNode && childNode.data) {
@@ -20,26 +25,26 @@ export function genClassForVnode(vnode) {
 
 function mergeClassData(child, parent) {
   return {
-    staticClass: concat(child.staticClass, parent.staticClass),
+    staticClass: concatClass(child.staticClass, parent.staticClass),
     class: isDef(child.class)
       ? [child.class, parent.class]
       : parent.class,
   };
 }
 
-export function renderClass(staticClass, dynamicClass) {
+function renderClass(staticClass, dynamicClass) {
   if (isDef(staticClass) || isDef(dynamicClass)) {
-    return concat(staticClass, stringifyClass(dynamicClass));
+    return concatClass(staticClass, stringifyClass(dynamicClass));
   }
   /* istanbul ignore next */
   return '';
 }
 
-export function concat(a, b) {
+function concatClass(a, b) {
   return a ? b ? (`${a} ${b}`) : a : (b || '');
 }
 
-export function stringifyClass(value) {
+function stringifyClass(value) {
   if (Array.isArray(value)) {
     return stringifyArray(value);
   }
@@ -75,3 +80,33 @@ function stringifyObject(value) {
   }
   return res;
 }
+
+function updateClass(oldVnode, vnode) {
+  const el = vnode.elm;
+  const { data } = vnode;
+  const oldData = oldVnode.data;
+  if (
+    isUndef(data.staticClass)
+    && isUndef(data.class) && (
+      isUndef(oldData) || (
+        isUndef(oldData.staticClass)
+        && isUndef(oldData.class)
+      )
+    )
+  ) {
+    return;
+  }
+
+  const cls = genClassForVnode(vnode);
+
+  // set the class
+  if (cls !== el._prevClass) {
+    el.setAttribute('class', cls);
+    el._prevClass = cls;
+  }
+}
+
+export default {
+  create: updateClass,
+  update: updateClass,
+};

@@ -12,13 +12,13 @@ import {
   extend,
   nextTick,
   mergeOptions,
-  defineReactive,
 } from '../util/index';
 
 export function initGlobalAPI(Vue) {
   // config
   const configDef = {};
   configDef.get = () => config;
+
   if (process.env.NODE_ENV !== 'production') {
     configDef.set = () => {
       warn(
@@ -26,6 +26,7 @@ export function initGlobalAPI(Vue) {
       );
     };
   }
+
   Object.defineProperty(Vue, 'config', configDef);
 
   // exposed util methods.
@@ -35,7 +36,6 @@ export function initGlobalAPI(Vue) {
     warn,
     extend,
     mergeOptions,
-    defineReactive,
   };
 
   Vue.nextTick = nextTick;

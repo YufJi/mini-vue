@@ -1,4 +1,3 @@
-import { extend } from 'shared/util';
 import { createCompileToFunctionFn } from './to-function';
 
 export function createCompilerCreator(baseCompile) {

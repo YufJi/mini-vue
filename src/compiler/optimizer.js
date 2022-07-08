@@ -1,4 +1,4 @@
-import { makeMap, isBuiltInTag, cached, no } from 'shared/util';
+import { makeMap, isBuiltInTag, cached, no } from 'shared/util/index';
 
 let isStaticKey;
 let isPlatformReservedTag;
@@ -40,12 +40,10 @@ function markStatic(node) {
     // do not make component slot content static. this avoids
     // 1. components not able to mutate slot nodes
     // 2. static slot content fails for hot-reloading
-    if (
-      !isPlatformReservedTag(node.tag)
-      && node.tag !== 'slot'
-    ) {
+    if (!isPlatformReservedTag(node.tag) && node.tag !== 'slot') {
       return;
     }
+
     for (let i = 0, l = node.children.length; i < l; i++) {
       const child = node.children[i];
       markStatic(child);

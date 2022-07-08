@@ -5,9 +5,9 @@
  * http://erik.eae.net/simplehtmlparser/simplehtmlparser.js
  */
 
-import { makeMap, no } from 'shared/util';
-import { isNonPhrasingTag } from 'web/compiler/util';
+import { makeMap, no } from 'shared/util/index';
 import { unicodeRegExp } from 'core/util/lang';
+import { isNonPhrasingTag } from '../util';
 
 // Regular Expressions for parsing tags and attributes
 const attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/;
@@ -52,8 +52,9 @@ export function parseHTML(html, options) {
   const isUnaryTag = options.isUnaryTag || no;
   const canBeLeftOpenTag = options.canBeLeftOpenTag || no;
   let index = 0;
-  let last; let
-    lastTag;
+  let last;
+  let lastTag;
+
   while (html) {
     last = html;
     // Make sure we're not in a plaintext content element like script/style

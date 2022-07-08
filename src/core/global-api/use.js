@@ -10,6 +10,7 @@ export function initUse(Vue) {
     // additional parameters
     const args = toArray(arguments, 1);
     args.unshift(this);
+
     if (typeof plugin.install === 'function') {
       plugin.install.apply(plugin, args);
     } else if (typeof plugin === 'function') {

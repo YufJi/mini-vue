@@ -1,14 +1,9 @@
-import { toNumber, toString, looseEqual, looseIndexOf } from 'shared/util';
+import { toNumber, toString, looseEqual, looseIndexOf } from 'shared/util/index';
 import { createTextVNode, createEmptyVNode } from 'core/vdom/vnode';
 import { renderList } from './render-list';
 import { renderSlot } from './render-slot';
-import { resolveFilter } from './resolve-filter';
-import { checkKeyCodes } from './check-keycodes';
-import { bindObjectProps } from './bind-object-props';
-import { renderStatic, markOnce } from './render-static';
-import { bindObjectListeners } from './bind-object-listeners';
+import { renderStatic } from './render-static';
 import { resolveScopedSlots } from './resolve-scoped-slots';
-import { bindDynamicKeys, prependModifier } from './bind-dynamic-keys';
 import { getWxsMember } from './get-wxs-member';
 import { getLooseDataMember } from './get-loose-data-member';
 import { renderTemplate } from './render-template';

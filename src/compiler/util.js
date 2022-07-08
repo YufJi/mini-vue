@@ -1,4 +1,4 @@
-import { makeMap } from 'shared/util';
+import { makeMap } from 'shared/util/index';
 
 export const isUnaryTag = makeMap(
   'area,base,br,col,embed,frame,hr,img,input,isindex,keygen,'

@@ -1,4 +1,4 @@
-import { isDef } from 'shared/util';
+import { isDef } from 'shared/util/index';
 
 export function getFirstComponentChild(children) {
   if (Array.isArray(children)) {

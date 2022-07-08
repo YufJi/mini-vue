@@ -1,6 +1,6 @@
 import { def } from 'core/util/lang';
 import { normalizeChildren } from 'core/vdom/helpers/normalize-children';
-import { emptyObject } from 'shared/util';
+import { emptyObject } from 'shared/util/index';
 
 export function normalizeScopedSlots(
   slots,

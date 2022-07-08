@@ -3,15 +3,13 @@ import {
   nextTick,
   emptyObject,
   handleError,
-  defineReactive,
 } from '../util/index';
-
 import { createElement } from '../vdom/create-element';
+import VNode, { createEmptyVNode } from '../vdom/vnode';
 import { installRenderHelpers } from './render-helpers/index';
 import { resolveSlots } from './render-helpers/resolve-slots';
-import VNode, { createEmptyVNode } from '../vdom/vnode';
-
 import { isUpdatingChildComponent } from './lifecycle';
+import { defineReactive } from './state';
 
 export function initRender(vm) {
   vm._vnode = null; // the root of the child tree

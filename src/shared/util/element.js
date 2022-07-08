@@ -1,5 +1,4 @@
-import { inBrowser } from 'core/util/env';
-import { makeMap } from 'shared/util';
+import { makeMap } from './index';
 
 export const namespaceMap = {
   svg: 'http://www.w3.org/2000/svg',
@@ -48,10 +47,6 @@ export function getTagNamespace(tag) {
 
 const unknownElementCache = Object.create(null);
 export function isUnknownElement(tag) {
-  /* istanbul ignore if */
-  if (!inBrowser) {
-    return true;
-  }
   if (isReservedTag(tag)) {
     return false;
   }

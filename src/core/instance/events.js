@@ -6,6 +6,7 @@ import {
   invokeWithErrorHandling,
 } from '../util/index';
 import { updateListeners } from '../vdom/helpers/index';
+import { normalizeEvent } from '../vdom/modules/events';
 
 export function initEvents(vm) {
   vm._events = Object.create(null);
@@ -133,5 +134,25 @@ export function eventsMixin(Vue) {
       }
     }
     return vm;
+  };
+
+  Vue.prototype.$eventBinder = function (fn, modifiers) {
+    const vm = this;
+
+    const handler = function (event) {
+      if (modifiers.stop) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      if (typeof fn === 'function') {
+        fn.call(null, event);
+      } else if (typeof vm[fn] === 'function') {
+        vm[fn].call(vm, event);
+      }
+    };
+
+    handler.displayName = fn;
+    return handler;
   };
 }

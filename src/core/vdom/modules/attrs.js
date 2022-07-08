@@ -2,17 +2,44 @@ import {
   extend,
   isDef,
   isUndef,
-} from 'shared/util';
+  makeMap,
+} from 'shared/util/index';
 
-import {
-  isXlink,
-  xlinkNS,
-  getXlinkProp,
-  isBooleanAttr,
-  isEnumeratedAttr,
-  isFalsyAttrValue,
-  convertEnumeratedValue,
-} from '../../util/index';
+const isEnumeratedAttr = makeMap('contenteditable,draggable,spellcheck');
+
+const isValidContentEditableValue = makeMap('events,caret,typing,plaintext-only');
+
+const isFalsyAttrValue = (val) => {
+  return val == null || val === false;
+};
+
+const convertEnumeratedValue = (key, value) => {
+  return isFalsyAttrValue(value) || value === 'false'
+    ? 'false'
+    // allow arbitrary string value for contenteditable
+    : key === 'contenteditable' && isValidContentEditableValue(value)
+      ? value
+      : 'true';
+};
+
+const isBooleanAttr = makeMap(
+  'allowfullscreen,async,autofocus,autoplay,checked,compact,controls,declare,'
+  + 'default,defaultchecked,defaultmuted,defaultselected,defer,disabled,'
+  + 'enabled,formnovalidate,hidden,indeterminate,inert,ismap,itemscope,loop,multiple,'
+  + 'muted,nohref,noresize,noshade,novalidate,nowrap,open,pauseonexit,readonly,'
+  + 'required,reversed,scoped,seamless,selected,sortable,'
+  + 'truespeed,typemustmatch,visible',
+);
+
+const xlinkNS = 'http://www.w3.org/1999/xlink';
+
+const isXlink = (name) => {
+  return name.charAt(5) === ':' && name.slice(0, 5) === 'xlink';
+};
+
+const getXlinkProp = (name) => {
+  return isXlink(name) ? name.slice(6, name.length) : '';
+};
 
 function updateAttrs(oldVnode, vnode) {
   const opts = vnode.componentOptions;

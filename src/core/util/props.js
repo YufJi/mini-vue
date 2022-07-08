@@ -5,7 +5,7 @@ import {
   hyphenate,
   capitalize,
   isPlainObject,
-} from 'shared/util';
+} from 'shared/util/index';
 import { warn } from './debug';
 
 export function validateProp(

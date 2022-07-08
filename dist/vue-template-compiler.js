@@ -4,33 +4,90 @@ Object.defineProperty(exports, '__esModule', { value: true });
 
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
-var deindent = _interopDefault(require('de-indent'));
 var he = _interopDefault(require('he'));
 var parser = _interopDefault(require('@babel/parser'));
 var traverse = _interopDefault(require('@babel/traverse'));
 var generate$1 = _interopDefault(require('@babel/generator'));
 var t = _interopDefault(require('@babel/types'));
 
-/* @flow */
+var isHTMLTag = makeMap(
+  'html,body,base,head,link,meta,style,title,block,fragment'
+  + 'address,article,aside,footer,header,h1,h2,h3,h4,h5,h6,hgroup,nav,section,'
+  + 'div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,'
+  + 'a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,rtc,ruby,'
+  + 's,samp,small,span,strong,sub,sup,time,u,var,wbr,area,audio,map,track,video,'
+  + 'embed,object,param,source,canvas,script,noscript,del,ins,'
+  + 'caption,col,colgroup,table,thead,tbody,td,th,tr,'
+  + 'button,datalist,fieldset,form,input,label,legend,meter,optgroup,option,'
+  + 'output,progress,select,textarea,'
+  + 'details,dialog,menu,menuitem,summary,'
+  + 'content,element,shadow,template,blockquote,iframe,tfoot'
+);
+
+// this map is intentionally selective, only covering SVG elements that may
+// contain child elements.
+var isSVG = makeMap(
+  'svg,animate,circle,clippath,cursor,defs,desc,ellipse,filter,font-face,'
+  + 'foreignobject,g,glyph,image,line,marker,mask,missing-glyph,path,pattern,'
+  + 'polygon,polyline,rect,switch,symbol,text,textpath,tspan,use,view',
+  true
+);
+
+var isPreTag = function (tag) { return tag === 'pre'; };
+
+var isReservedTag = function (tag) {
+  return isHTMLTag(tag) || isSVG(tag);
+};
+
+function getTagNamespace(tag) {
+  if (isSVG(tag)) {
+    return 'svg';
+  }
+  // basic support for MathML
+  // note it doesn't support other MathML elements being component roots
+  if (tag === 'math') {
+    return 'math';
+  }
+}
+
+var unknownElementCache = Object.create(null);
+function isUnknownElement(tag) {
+  if (isReservedTag(tag)) {
+    return false;
+  }
+  tag = tag.toLowerCase();
+  /* istanbul ignore if */
+  if (unknownElementCache[tag] != null) {
+    return unknownElementCache[tag];
+  }
+  var el = document.createElement(tag);
+  if (tag.indexOf('-') > -1) {
+    // http://stackoverflow.com/a/28210364/1070244
+    return (unknownElementCache[tag] = (
+      el.constructor === window.HTMLUnknownElement
+      || el.constructor === window.HTMLElement
+    ));
+  } else {
+    return (unknownElementCache[tag] = /HTMLUnknownElement/.test(el.toString()));
+  }
+}
+
+var isTextInputType = makeMap('text,number,password,search,email,tel,url');
+
+var parseStyleText = cached(function (cssText) {
+  var res = {};
+  var listDelimiter = /;(?![^(]*\))/g;
+  var propertyDelimiter = /:(.+)/;
+  cssText.split(listDelimiter).forEach(function (item) {
+    if (item) {
+      var tmp = item.split(propertyDelimiter);
+      tmp.length > 1 && (res[tmp[0].trim()] = tmp[1].trim());
+    }
+  });
+  return res;
+});
 
 var emptyObject = Object.freeze({});
-
-/**
- * Get the raw type string of a value, e.g., [object Object].
- */
-var _toString = Object.prototype.toString;
-
-function toRawType(value) {
-  return _toString.call(value).slice(8, -1);
-}
-
-/**
- * Strict object type check. Only returns true
- * for plain JavaScript objects.
- */
-function isPlainObject(obj) {
-  return _toString.call(obj) === '[object Object]';
-}
 
 /**
  * Make a map and return a function for checking if a key
@@ -116,6 +173,116 @@ function genStaticKeys(modules) {
   }, []).join(',');
 }
 
+/* eslint-disable no-unused-vars */
+function baseWarn(msg, range) {
+  console.error(("[Vue compiler]: " + msg));
+}
+/* eslint-enable no-unused-vars */
+
+function pluckModuleFunction(modules, key) {
+  return modules
+    ? modules.map(function (m) { return m[key]; }).filter(function (_) { return _; })
+    : [];
+}
+
+function addAttr(el, name, value, range) {
+  var attrs = (el.attrs || (el.attrs = []));
+  attrs.push(rangeSetItem({ name: name, value: value }, range));
+  el.plain = false;
+}
+
+function prependModifierMarker(symbol, name) {
+  return symbol + name; // mark the event as captured
+}
+
+function addHandler(el, name, value, modifiers, warn, range) {
+  modifiers = modifiers || emptyObject;
+  // warn prevent and passive modifier
+  /* istanbul ignore if */
+  if (process.env.NODE_ENV !== 'production' && warn && modifiers.prevent && modifiers.passive) {
+    warn(
+      'passive and prevent can\'t be used together. '
+      + 'Passive handler can\'t prevent default event.',
+      range
+    );
+  }
+
+  // check capture modifier
+  if (modifiers.capture) {
+    delete modifiers.capture;
+    name = prependModifierMarker('!', name);
+  }
+
+  if (modifiers.once) {
+    delete modifiers.once;
+    name = prependModifierMarker('~', name);
+  }
+  /* istanbul ignore if */
+  if (modifiers.passive) {
+    delete modifiers.passive;
+    name = prependModifierMarker('&', name);
+  }
+
+  var events = el.events || (el.events = {});
+
+  var newHandler = rangeSetItem({ value: value.trim() }, range);
+  if (modifiers !== emptyObject) {
+    newHandler.modifiers = modifiers;
+  }
+
+  events[name] = newHandler;
+
+  el.plain = false;
+}
+
+function getRawBindingAttr(el, name) {
+  return el.rawAttrsMap[name];
+}
+
+// note: this only removes the attr from the Array (attrsList) so that it
+// doesn't get processed by processAttrs.
+// By default it does NOT remove it from the map (attrsMap) because the map is
+// needed during codegen.
+function getAndRemoveAttr(el, name, removeFromMap) {
+  var val;
+  if ((val = el.attrsMap[name]) != null) {
+    var list = el.attrsList;
+    for (var i = 0, l = list.length; i < l; i++) {
+      if (list[i].name === name) {
+        list.splice(i, 1);
+        break;
+      }
+    }
+  }
+  if (removeFromMap) {
+    delete el.attrsMap[name];
+  }
+  return val;
+}
+
+function rangeSetItem(item, range) {
+  if (range) {
+    if (range.start != null) {
+      item.start = range.start;
+    }
+    if (range.end != null) {
+      item.end = range.end;
+    }
+  }
+  return item;
+}
+
+/**
+ * Check if a string starts with $ or _
+ */
+
+/**
+ * unicode letters used for parsing html tags, component names and property paths.
+ * using https://www.w3.org/TR/html53/semantics-scripting.html#potentialcustomelementname
+ * skipping \u10000-\uEFFFF due to it freezing up PhantomJS
+ */
+var unicodeRegExp = /a-zA-Z\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD/;
+
 var isUnaryTag = makeMap(
   'area,base,br,col,embed,frame,hr,img,input,isindex,keygen,'
   + 'link,meta,param,source,track,wbr'
@@ -136,17 +303,6 @@ var isNonPhrasingTag = makeMap(
   + 'optgroup,option,param,rp,rt,source,style,summary,tbody,td,tfoot,th,thead,'
   + 'title,tr,track'
 );
-
-/**
- * Check if a string starts with $ or _
- */
-
-/**
- * unicode letters used for parsing html tags, component names and property paths.
- * using https://www.w3.org/TR/html53/semantics-scripting.html#potentialcustomelementname
- * skipping \u10000-\uEFFFF due to it freezing up PhantomJS
- */
-var unicodeRegExp = /a-zA-Z\u00B7\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u037D\u037F-\u1FFF\u200C-\u200D\u203F-\u2040\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD/;
 
 /*!
  * HTML Parser By John Resig (ejohn.org)
@@ -198,8 +354,9 @@ function parseHTML(html, options) {
   var isUnaryTag = options.isUnaryTag || no;
   var canBeLeftOpenTag = options.canBeLeftOpenTag || no;
   var index = 0;
-  var last; var
-    lastTag;
+  var last;
+  var lastTag;
+
   while (html) {
     last = html;
     // Make sure we're not in a plaintext content element like script/style
@@ -451,300 +608,6 @@ function parseHTML(html, options) {
   }
 }
 
-var splitRE = /\r?\n/g;
-var replaceRE = /./g;
-var isSpecialTag = makeMap('script,style,template', true);
-
-/**
- * Parse a single-file component (*.vue) file into an SFC Descriptor Object.
- */
-function parseComponent(
-  content,
-  options
-) {
-  if ( options === void 0 ) options = {};
-
-  var sfc = {
-    template: null,
-    script: null,
-    styles: [],
-    customBlocks: [],
-    errors: [],
-  };
-  var depth = 0;
-  var currentBlock = null;
-
-  var warn = function (msg) {
-    sfc.errors.push(msg);
-  };
-
-  if (process.env.NODE_ENV !== 'production' && options.outputSourceRange) {
-    warn = function (msg, range) {
-      var data = { msg: msg };
-      if (range.start != null) {
-        data.start = range.start;
-      }
-      if (range.end != null) {
-        data.end = range.end;
-      }
-      sfc.errors.push(data);
-    };
-  }
-
-  function start(
-    tag,
-    attrs,
-    unary,
-    start,
-    end
-  ) {
-    if (depth === 0) {
-      currentBlock = {
-        type: tag,
-        content: '',
-        start: end,
-        attrs: attrs.reduce(function (cumulated, ref) {
-          var name = ref.name;
-          var value = ref.value;
-
-          cumulated[name] = value || true;
-          return cumulated;
-        }, {}),
-      };
-      if (isSpecialTag(tag)) {
-        checkAttrs(currentBlock, attrs);
-        if (tag === 'style') {
-          sfc.styles.push(currentBlock);
-        } else {
-          sfc[tag] = currentBlock;
-        }
-      } else { // custom blocks
-        sfc.customBlocks.push(currentBlock);
-      }
-    }
-    if (!unary) {
-      depth++;
-    }
-  }
-
-  function checkAttrs(block, attrs) {
-    for (var i = 0; i < attrs.length; i++) {
-      var attr = attrs[i];
-      if (attr.name === 'lang') {
-        block.lang = attr.value;
-      }
-      if (attr.name === 'scoped') {
-        block.scoped = true;
-      }
-      if (attr.name === 'module') {
-        block.module = attr.value || true;
-      }
-      if (attr.name === 'src') {
-        block.src = attr.value;
-      }
-    }
-  }
-
-  function end(tag, start) {
-    if (depth === 1 && currentBlock) {
-      currentBlock.end = start;
-      var text = content.slice(currentBlock.start, currentBlock.end);
-      if (options.deindent !== false) {
-        text = deindent(text);
-      }
-      // pad content so that linters and pre-processors can output correct
-      // line numbers in errors and warnings
-      if (currentBlock.type !== 'template' && options.pad) {
-        text = padContent(currentBlock, options.pad) + text;
-      }
-      currentBlock.content = text;
-      currentBlock = null;
-    }
-    depth--;
-  }
-
-  function padContent(block, pad) {
-    if (pad === 'space') {
-      return content.slice(0, block.start).replace(replaceRE, ' ');
-    } else {
-      var offset = content.slice(0, block.start).split(splitRE).length;
-      var padChar = block.type === 'script' && !block.lang
-        ? '//\n'
-        : '\n';
-      return Array(offset).join(padChar);
-    }
-  }
-
-  parseHTML(content, {
-    warn: warn,
-    start: start,
-    end: end,
-    outputSourceRange: options.outputSourceRange,
-  });
-
-  return sfc;
-}
-
-var range = 2;
-
-function generateCodeFrame(source, start, end) {
-  if ( start === void 0 ) start = 0;
-  if ( end === void 0 ) end = source.length;
-
-  var lines = source.split(/\r?\n/);
-  var count = 0;
-  var res = [];
-  for (var i = 0; i < lines.length; i++) {
-    count += lines[i].length + 1;
-    if (count >= start) {
-      for (var j = i - range; j <= i + range || end > count; j++) {
-        if (j < 0 || j >= lines.length) { continue; }
-        res.push(("" + (j + 1) + (repeat(' ', 3 - String(j + 1).length)) + "|  " + (lines[j])));
-        var lineLength = lines[j].length;
-        if (j === i) {
-          // push underline
-          var pad = start - (count - lineLength) + 1;
-          var length = end > count ? lineLength - pad : end - start;
-          res.push(("   |  " + (repeat(' ', pad)) + (repeat('^', length))));
-        } else if (j > i) {
-          if (end > count) {
-            var length$1 = Math.min(end - count, lineLength);
-            res.push(("   |  " + (repeat('^', length$1))));
-          }
-          count += lineLength + 1;
-        }
-      }
-      break;
-    }
-  }
-  return res.join('\n');
-}
-
-function repeat(str, n) {
-  var result = '';
-  if (n > 0) {
-    while (true) { // eslint-disable-line
-      if (n & 1) { result += str; }
-      n >>>= 1;
-      if (n <= 0) { break; }
-      str += str;
-    }
-  }
-  return result;
-}
-
-/* eslint-disable no-unused-vars */
-function baseWarn(msg, range) {
-  console.error(("[Vue compiler]: " + msg));
-}
-/* eslint-enable no-unused-vars */
-
-function pluckModuleFunction(modules, key) {
-  return modules
-    ? modules.map(function (m) { return m[key]; }).filter(function (_) { return _; })
-    : [];
-}
-
-function addProp(el, name, value, range) {
-  (el.props || (el.props = [])).push(rangeSetItem({ name: name, value: value }, range));
-  el.plain = false;
-}
-
-function addAttr(el, name, value, range) {
-  var attrs = (el.attrs || (el.attrs = []));
-  attrs.push(rangeSetItem({ name: name, value: value }, range));
-  el.plain = false;
-}
-
-function prependModifierMarker(symbol, name) {
-  return symbol + name; // mark the event as captured
-}
-
-function addHandler(el, name, value, modifiers, important, warn, range) {
-  modifiers = modifiers || emptyObject;
-  // warn prevent and passive modifier
-  /* istanbul ignore if */
-  if (process.env.NODE_ENV !== 'production' && warn && modifiers.prevent && modifiers.passive) {
-    warn(
-      'passive and prevent can\'t be used together. '
-      + 'Passive handler can\'t prevent default event.',
-      range
-    );
-  }
-
-  // check capture modifier
-  if (modifiers.capture) {
-    delete modifiers.capture;
-    name = prependModifierMarker('!', name);
-  }
-
-  if (modifiers.once) {
-    delete modifiers.once;
-    name = prependModifierMarker('~', name);
-  }
-  /* istanbul ignore if */
-  if (modifiers.passive) {
-    delete modifiers.passive;
-    name = prependModifierMarker('&', name);
-  }
-
-  var events = el.events || (el.events = {});
-
-  var newHandler = rangeSetItem({ value: value.trim() }, range);
-  if (modifiers !== emptyObject) {
-    newHandler.modifiers = modifiers;
-  }
-
-  var handlers = events[name];
-  /* istanbul ignore if */
-  if (Array.isArray(handlers)) {
-    important ? handlers.unshift(newHandler) : handlers.push(newHandler);
-  } else if (handlers) {
-    events[name] = important ? [newHandler, handlers] : [handlers, newHandler];
-  } else {
-    events[name] = newHandler;
-  }
-
-  el.plain = false;
-}
-
-function getRawBindingAttr(el, name) {
-  return el.rawAttrsMap[name];
-}
-
-// note: this only removes the attr from the Array (attrsList) so that it
-// doesn't get processed by processAttrs.
-// By default it does NOT remove it from the map (attrsMap) because the map is
-// needed during codegen.
-function getAndRemoveAttr(el, name, removeFromMap) {
-  var val;
-  if ((val = el.attrsMap[name]) != null) {
-    var list = el.attrsList;
-    for (var i = 0, l = list.length; i < l; i++) {
-      if (list[i].name === name) {
-        list.splice(i, 1);
-        break;
-      }
-    }
-  }
-  if (removeFromMap) {
-    delete el.attrsMap[name];
-  }
-  return val;
-}
-
-function rangeSetItem(item, range) {
-  if (range) {
-    if (range.start != null) {
-      item.start = range.start;
-    }
-    if (range.end != null) {
-      item.end = range.end;
-    }
-  }
-  return item;
-}
-
 var fullExpressionTagReg = /^\{\{([^`{}]+)\}\}$/;
 var expressionTagReg = /\{\{([^`{}]+)\}\}/g;
 
@@ -980,7 +843,6 @@ var transforms;
 var preTransforms;
 var postTransforms;
 var platformIsPreTag;
-var platformMustUseProp;
 var platformGetTagNamespace;
 
 function createASTElement(tag, attrs, parent) {
@@ -1002,7 +864,6 @@ function parse(template, options) {
   warn = options.warn || baseWarn;
 
   platformIsPreTag = options.isPreTag || no;
-  platformMustUseProp = options.mustUseProp || no;
   platformGetTagNamespace = options.getTagNamespace || no;
 
   preTransforms = pluckModuleFunction(options.modules, 'preTransformNode');
@@ -1508,14 +1369,9 @@ function processAttrs(el) {
         modifiers.capture = capture;
       }
 
-      addHandler(el, eventName, value, modifiers, false, warn, list[i]);
+      addHandler(el, eventName, value, modifiers, warn, list[i]);
     } else {
       addAttr(el, name, value, list[i]);
-      // #6887 firefox doesn't update muted state if set via attribute
-      // even immediately after element creation
-      if (name === 'muted' && platformMustUseProp(el.tag, el.attrsMap.type, name)) {
-        addProp(el, name, 'true', list[i]);
-      }
     }
   }
 }
@@ -1589,12 +1445,10 @@ function markStatic(node) {
     // do not make component slot content static. this avoids
     // 1. components not able to mutate slot nodes
     // 2. static slot content fails for hot-reloading
-    if (
-      !isPlatformReservedTag(node.tag)
-      && node.tag !== 'slot'
-    ) {
+    if (!isPlatformReservedTag(node.tag) && node.tag !== 'slot') {
       return;
     }
+
     for (var i = 0, l = node.children.length; i < l; i++) {
       var child = node.children[i];
       markStatic(child);
@@ -1705,11 +1559,7 @@ function genHandler(handler, state) {
     return 'function(){}';
   }
 
-  if (Array.isArray(handler)) {
-    return ("[" + (handler.map(function (handler) { return genHandler(handler); }).join(',')) + "]");
-  }
-
-  return ("_x.eventBinder(" + (transformExpression(handler.value, state.scope)) + ", " + (JSON.stringify(handler.modifiers)) + ")");
+  return ("_x.$eventBinder(" + (transformExpression(handler.value, state.scope)) + ", " + (JSON.stringify(handler.modifiers)) + ")");
 }
 
 var CodegenState = function CodegenState(options) {
@@ -2095,9 +1945,6 @@ function transformSpecialNewlines(text) {
     .replace(/\u2029/g, '\\u2029');
 }
 
-var ASSET_TYPES = [
-  'component' ];
-
 var LIFECYCLE_HOOKS = [
   'beforeCreate',
   'created',
@@ -2162,35 +2009,29 @@ var config = ({
    * Check if a tag is reserved so that it cannot be registered as a
    * component. This is platform-dependent and may be overwritten.
    */
-  isReservedTag: no,
+  isReservedTag: isReservedTag,
 
   /**
    * Check if an attribute is reserved so that it cannot be used as a component
    * prop. This is platform-dependent and may be overwritten.
    */
-  isReservedAttr: no,
+  isReservedAttr: makeMap('style,class'),
 
   /**
    * Check if a tag is an unknown element.
    * Platform-dependent.
    */
-  isUnknownElement: no,
+  isUnknownElement: isUnknownElement,
 
   /**
    * Get the namespace of an element
    */
-  getTagNamespace: noop,
+  getTagNamespace: getTagNamespace,
 
   /**
    * Parse the real tag name for the specific platform.
    */
   parsePlatformTagName: identity,
-
-  /**
-   * Check if an attribute must be bound using property, e.g. value
-   * Platform-dependent.
-   */
-  mustUseProp: no,
 
   /**
    * Perform updates asynchronously. Intended to be used by Vue Test Utils
@@ -2219,9 +2060,7 @@ if (process.env.NODE_ENV !== 'production') {
   warn$1 = function (msg, vm) {
     var trace = vm ? generateComponentTrace(vm) : '';
 
-    if (config.warnHandler) {
-      config.warnHandler.call(null, msg, vm, trace);
-    } else if (hasConsole && (!config.silent)) {
+    if (hasConsole && (!config.silent)) {
       console.error(("[Vue warn]: " + msg + trace));
     }
   };
@@ -2254,7 +2093,7 @@ if (process.env.NODE_ENV !== 'production') {
     );
   };
 
-  var repeat$1 = function (str, n) {
+  var repeat = function (str, n) {
     var res = '';
     while (n) {
       if (n % 2 === 1) { res += str; }
@@ -2284,7 +2123,7 @@ if (process.env.NODE_ENV !== 'production') {
         vm = vm.$parent;
       }
       return ("\n\nfound in\n\n" + (tree
-        .map(function (vm, i) { return ("" + (i === 0 ? '---> ' : repeat$1(' ', 5 + i * 2)) + (Array.isArray(vm)
+        .map(function (vm, i) { return ("" + (i === 0 ? '---> ' : repeat(' ', 5 + i * 2)) + (Array.isArray(vm)
             ? ((formatComponentName(vm[0])) + "... (" + (vm[1]) + " recursive calls)")
             : formatComponentName(vm))); })
         .join('\n')));
@@ -2292,6 +2131,54 @@ if (process.env.NODE_ENV !== 'production') {
       return ("\n\n(found in " + (formatComponentName(vm)) + ")");
     }
   };
+}
+
+var range = 2;
+
+function generateCodeFrame(source, start, end) {
+  if ( start === void 0 ) start = 0;
+  if ( end === void 0 ) end = source.length;
+
+  var lines = source.split(/\r?\n/);
+  var count = 0;
+  var res = [];
+  for (var i = 0; i < lines.length; i++) {
+    count += lines[i].length + 1;
+    if (count >= start) {
+      for (var j = i - range; j <= i + range || end > count; j++) {
+        if (j < 0 || j >= lines.length) { continue; }
+        res.push(("" + (j + 1) + (repeat$1(' ', 3 - String(j + 1).length)) + "|  " + (lines[j])));
+        var lineLength = lines[j].length;
+        if (j === i) {
+          // push underline
+          var pad = start - (count - lineLength) + 1;
+          var length = end > count ? lineLength - pad : end - start;
+          res.push(("   |  " + (repeat$1(' ', pad)) + (repeat$1('^', length))));
+        } else if (j > i) {
+          if (end > count) {
+            var length$1 = Math.min(end - count, lineLength);
+            res.push(("   |  " + (repeat$1('^', length$1))));
+          }
+          count += lineLength + 1;
+        }
+      }
+      break;
+    }
+  }
+  return res.join('\n');
+}
+
+function repeat$1(str, n) {
+  var result = '';
+  if (n > 0) {
+    while (true) { // eslint-disable-line
+      if (n & 1) { result += str; }
+      n >>>= 1;
+      if (n <= 0) { break; }
+      str += str;
+    }
+  }
+  return result;
 }
 
 function createFunction(code, errors) {
@@ -2306,11 +2193,7 @@ function createFunction(code, errors) {
 function createCompileToFunctionFn(compile) {
   var cache = Object.create(null);
 
-  return function compileToFunctions(
-    template,
-    options,
-    vm
-  ) {
+  return function compileToFunctions(template, options, vm) {
     options = extend({}, options);
     var warn = options.warn || warn$1;
     delete options.warn;
@@ -2457,464 +2340,6 @@ function createCompilerCreator(baseCompile) {
   };
 }
 
-// `createCompilerCreator` allows creating compilers that use alternative
-// parser/optimizer/codegen, e.g the SSR optimizing compiler.
-// Here we just export a default compiler using the default parts.
-var createCompiler = createCompilerCreator(function (template, options) {
-  // 生成template ast
-  var ast = parse(template.trim(), options);
-
-  // 优化
-  if (options.optimize !== false) {
-    optimize(ast, options);
-  }
-
-  // 生成code
-  var code = generate(ast, options);
-
-  return {
-    ast: ast,
-    render: code.render,
-    staticRenderFns: code.staticRenderFns,
-    header: code.header,
-  };
-});
-
-// can we use __proto__?
-
-// Browser environment sniffing
-var inBrowser = typeof window !== 'undefined';
-var UA = inBrowser && window.navigator.userAgent.toLowerCase();
-var isIE = UA && /msie|trident/.test(UA);
-var isIE9 = UA && UA.indexOf('msie 9.0') > 0;
-var isEdge = UA && UA.indexOf('edge/') > 0;
-var isAndroid = (UA && UA.indexOf('android') > 0);
-var isIOS = (UA && /iphone|ipad|ipod|ios/.test(UA));
-var isChrome = UA && /chrome\/\d+/.test(UA) && !isEdge;
-var isPhantomJS = UA && /phantomjs/.test(UA);
-var isFF = UA && UA.match(/firefox\/(\d+)/);
-
-// Firefox has a "watch" function on Object.prototype...
-var nativeWatch = ({}).watch;
-
-var supportsPassive = false;
-if (inBrowser) {
-  try {
-    var opts = {};
-    Object.defineProperty(opts, 'passive', ({
-      get: function get() {
-        /* istanbul ignore next */
-        supportsPassive = true;
-      },
-    })); // https://github.com/facebook/flow/issues/285
-    window.addEventListener('test-passive', null, opts);
-  } catch (e) {}
-}
-
-/* istanbul ignore next */
-function isNative(Ctor) {
-  return typeof Ctor === 'function' && /native code/.test(Ctor.toString());
-}
-
-var hasSymbol = typeof Symbol !== 'undefined' && isNative(Symbol)
-  && typeof Reflect !== 'undefined' && isNative(Reflect.ownKeys);
-/* istanbul ignore if */ // $flow-disable-line
-if (typeof Set !== 'undefined' && isNative(Set)) ;
-
-/**
- * Option overwriting strategies are functions that handle
- * how to merge a parent option value and a child option
- * value into the final value.
- */
-var strats = config.optionMergeStrategies;
-
-/**
- * Options with restrictions
- */
-if (process.env.NODE_ENV !== 'production') {
-  strats.el = strats.propsData = function (parent, child, vm, key) {
-    if (!vm) {
-      warn$1(
-        "option \"" + key + "\" can only be used during instance "
-        + 'creation with the `new` keyword.'
-      );
-    }
-    return defaultStrat(parent, child);
-  };
-}
-
-/**
- * Helper that recursively merges two data objects together.
- */
-function mergeData(to, from) {
-  if (!from) { return to; }
-
-  var key;
-  var toVal;
-  var fromVal;
-
-  var keys = hasSymbol
-    ? Reflect.ownKeys(from)
-    : Object.keys(from);
-
-  for (var i = 0; i < keys.length; i++) {
-    key = keys[i];
-    toVal = to[key];
-    fromVal = from[key];
-
-    to[key] = fromVal;
-  }
-  return to;
-}
-
-/**
- * Data
- */
-function mergeDataOrFn(parentVal, childVal, vm) {
-  if (!vm) {
-    // in a Vue.extend merge, both should be functions
-    if (!childVal) {
-      return parentVal;
-    }
-    if (!parentVal) {
-      return childVal;
-    }
-    // when parentVal & childVal are both present,
-    // we need to return a function that returns the
-    // merged result of both functions... no need to
-    // check if parentVal is a function here because
-    // it has to be a function to pass previous merges.
-    return function mergedDataFn() {
-      return mergeData(
-        typeof childVal === 'function' ? childVal.call(this, this) : childVal,
-        typeof parentVal === 'function' ? parentVal.call(this, this) : parentVal
-      );
-    };
-  } else {
-    return function mergedInstanceDataFn() {
-      // instance merge
-      var instanceData = typeof childVal === 'function'
-        ? childVal.call(vm, vm)
-        : childVal;
-      var defaultData = typeof parentVal === 'function'
-        ? parentVal.call(vm, vm)
-        : parentVal;
-      if (instanceData) {
-        return mergeData(instanceData, defaultData);
-      } else {
-        return defaultData;
-      }
-    };
-  }
-}
-
-strats.data = function (parentVal, childVal, vm) {
-  if (!vm) {
-    if (childVal && typeof childVal !== 'function') {
-      process.env.NODE_ENV !== 'production' && warn$1(
-        'The "data" option should be a function '
-        + 'that returns a per-instance value in component '
-        + 'definitions.',
-        vm
-      );
-
-      return parentVal;
-    }
-    return mergeDataOrFn(parentVal, childVal);
-  }
-
-  return mergeDataOrFn(parentVal, childVal, vm);
-};
-
-/**
- * Hooks and props are merged as arrays.
- */
-function mergeHook(parentVal, childVal) {
-  var res = childVal
-    ? parentVal
-      ? parentVal.concat(childVal)
-      : Array.isArray(childVal)
-        ? childVal
-        : [childVal]
-    : parentVal;
-  return res
-    ? dedupeHooks(res)
-    : res;
-}
-
-function dedupeHooks(hooks) {
-  var res = [];
-  for (var i = 0; i < hooks.length; i++) {
-    if (res.indexOf(hooks[i]) === -1) {
-      res.push(hooks[i]);
-    }
-  }
-  return res;
-}
-
-LIFECYCLE_HOOKS.forEach(function (hook) {
-  strats[hook] = mergeHook;
-});
-
-/**
- * Assets
- *
- * When a vm is present (instance creation), we need to do
- * a three-way merge between constructor options, instance
- * options and parent options.
- */
-function mergeAssets(parentVal, childVal, vm, key) {
-  var res = Object.create(parentVal || null);
-  if (childVal) {
-    process.env.NODE_ENV !== 'production' && assertObjectType(key, childVal, vm);
-    return extend(res, childVal);
-  } else {
-    return res;
-  }
-}
-
-ASSET_TYPES.forEach(function (type) {
-  strats[(type + "s")] = mergeAssets;
-});
-
-/**
- * Watchers.
- *
- * Watchers hashes should not overwrite one
- * another, so we merge them as arrays.
- */
-strats.watch = function (parentVal, childVal, vm, key) {
-  // work around Firefox's Object.prototype.watch...
-  if (parentVal === nativeWatch) { parentVal = undefined; }
-  if (childVal === nativeWatch) { childVal = undefined; }
-  /* istanbul ignore if */
-  if (!childVal) { return Object.create(parentVal || null); }
-  if (process.env.NODE_ENV !== 'production') {
-    assertObjectType(key, childVal, vm);
-  }
-  if (!parentVal) { return childVal; }
-  var ret = {};
-  extend(ret, parentVal);
-  for (var key$1 in childVal) {
-    var parent = ret[key$1];
-    var child = childVal[key$1];
-    if (parent && !Array.isArray(parent)) {
-      parent = [parent];
-    }
-    ret[key$1] = parent
-      ? parent.concat(child)
-      : Array.isArray(child) ? child : [child];
-  }
-  return ret;
-};
-
-/**
- * Other object hashes.
- */
-strats.props = strats.methods = strats.inject = strats.computed = function (parentVal, childVal, vm, key) {
-  if (childVal && process.env.NODE_ENV !== 'production') {
-    assertObjectType(key, childVal, vm);
-  }
-  if (!parentVal) { return childVal; }
-  var ret = Object.create(null);
-  extend(ret, parentVal);
-  if (childVal) { extend(ret, childVal); }
-  return ret;
-};
-
-/**
- * Default strategy.
- */
-var defaultStrat = function (parentVal, childVal) {
-  return childVal === undefined
-    ? parentVal
-    : childVal;
-};
-
-function assertObjectType(name, value, vm) {
-  if (!isPlainObject(value)) {
-    warn$1(
-      "Invalid value for option \"" + name + "\": expected an Object, "
-      + "but got " + (toRawType(value)) + ".",
-      vm
-    );
-  }
-}
-
-/* globals MutationObserver */
-
-var callbacks = [];
-
-function flushCallbacks() {
-  var copies = callbacks.slice(0);
-  callbacks.length = 0;
-  for (var i = 0; i < copies.length; i++) {
-    copies[i]();
-  }
-}
-
-// The nextTick behavior leverages the microtask queue, which can be accessed
-// via either native Promise.then or MutationObserver.
-// MutationObserver has wider support, however it is seriously bugged in
-// UIWebView in iOS >= 9.3.3 when triggered in touch event handlers. It
-// completely stops working after triggering a few times... so, if native
-// Promise is available, we will use it:
-/* istanbul ignore next, $flow-disable-line */
-if (typeof Promise !== 'undefined' && isNative(Promise)) ; else if (typeof MutationObserver !== 'undefined' && (
-  isNative(MutationObserver)
-  // PhantomJS and iOS 7.x
-  || MutationObserver.toString() === '[object MutationObserverConstructor]'
-)) {
-  // Use MutationObserver where native Promise is not available,
-  // e.g. PhantomJS, iOS7, Android 4.4
-  // (#6466 MutationObserver is unreliable in IE11)
-  var counter = 1;
-  var observer = new MutationObserver(flushCallbacks);
-  var textNode = document.createTextNode(String(counter));
-  observer.observe(textNode, {
-    characterData: true,
-  });
-} else if (typeof setImmediate !== 'undefined' && isNative(setImmediate)) ;
-
-if (process.env.NODE_ENV !== 'production') {
-  var perf = inBrowser && window.performance;
-  /* istanbul ignore if */
-  if (
-    perf
-    && perf.mark
-    && perf.measure
-    && perf.clearMarks
-    && perf.clearMeasures
-  ) ;
-}
-
-var VNode = function VNode(tag, data, children, text, elm, context, componentOptions) {
-  this.tag = tag;
-  this.data = data;
-  this.children = children;
-  this.text = text;
-  this.elm = elm;
-  this.ns = undefined;
-  this.context = context;
-  this.fnContext = undefined;
-  this.fnOptions = undefined;
-  this.fnScopeId = undefined;
-  this.key = data && data.key;
-  this.componentOptions = componentOptions;
-  this.componentInstance = undefined;
-  this.parent = undefined;
-  this.raw = false;
-  this.isStatic = false;
-  this.isRootInsert = true;
-  this.isComment = false;
-  this.isCloned = false;
-  this.isOnce = false;
-};
-
-var prototypeAccessors = { child: { configurable: true } };
-
-// DEPRECATED: alias for componentInstance for backwards compat.
-/* istanbul ignore next */
-prototypeAccessors.child.get = function () {
-  return this.componentInstance;
-};
-
-Object.defineProperties( VNode.prototype, prototypeAccessors );
-
-// Async edge case fix requires storing an event listener's attach timestamp.
-var getNow = Date.now;
-
-// Determine what event timestamp the browser is using. Annoyingly, the
-// timestamp can either be hi-res (relative to page load) or low-res
-// (relative to UNIX epoch), so in order to compare time we have to use the
-// same timestamp type when saving the flush timestamp.
-// All IE versions use low-res event timestamps, and have problematic clock
-// implementations (#9632)
-if (inBrowser && !isIE) {
-  var performance = window.performance;
-  if (
-    performance
-    && typeof performance.now === 'function'
-    && getNow() > document.createEvent('Event').timeStamp
-  ) {
-    // if the event timestamp, although evaluated AFTER the Date.now(), is
-    // smaller than it, it means the event is using a hi-res timestamp,
-    // and we need to use the hi-res version for event listener timestamps as
-    // well.
-    getNow = function () { return performance.now(); };
-  }
-}
-
-// these are reserved for web because they are directly compiled away
-// during template compilation
-var isReservedAttr = makeMap('style,class');
-
-// attributes that should be using props for binding
-var acceptValue = makeMap('input,textarea,option,select,progress');
-var mustUseProp = function (tag, type, attr) {
-  return (
-    (attr === 'value' && acceptValue(tag)) && type !== 'button'
-    || (attr === 'selected' && tag === 'option')
-    || (attr === 'checked' && tag === 'input')
-    || (attr === 'muted' && tag === 'video')
-  );
-};
-
-var isEnumeratedAttr = makeMap('contenteditable,draggable,spellcheck');
-
-var isValidContentEditableValue = makeMap('events,caret,typing,plaintext-only');
-
-var isBooleanAttr = makeMap(
-  'allowfullscreen,async,autofocus,autoplay,checked,compact,controls,declare,'
-  + 'default,defaultchecked,defaultmuted,defaultselected,defer,disabled,'
-  + 'enabled,formnovalidate,hidden,indeterminate,inert,ismap,itemscope,loop,multiple,'
-  + 'muted,nohref,noresize,noshade,novalidate,nowrap,open,pauseonexit,readonly,'
-  + 'required,reversed,scoped,seamless,selected,sortable,'
-  + 'truespeed,typemustmatch,visible'
-);
-
-var isHTMLTag = makeMap(
-  'html,body,base,head,link,meta,style,title,block,fragment'
-  + 'address,article,aside,footer,header,h1,h2,h3,h4,h5,h6,hgroup,nav,section,'
-  + 'div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,'
-  + 'a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,rtc,ruby,'
-  + 's,samp,small,span,strong,sub,sup,time,u,var,wbr,area,audio,map,track,video,'
-  + 'embed,object,param,source,canvas,script,noscript,del,ins,'
-  + 'caption,col,colgroup,table,thead,tbody,td,th,tr,'
-  + 'button,datalist,fieldset,form,input,label,legend,meter,optgroup,option,'
-  + 'output,progress,select,textarea,'
-  + 'details,dialog,menu,menuitem,summary,'
-  + 'content,element,shadow,template,blockquote,iframe,tfoot'
-);
-
-// this map is intentionally selective, only covering SVG elements that may
-// contain child elements.
-var isSVG = makeMap(
-  'svg,animate,circle,clippath,cursor,defs,desc,ellipse,filter,font-face,'
-  + 'foreignobject,g,glyph,image,line,marker,mask,missing-glyph,path,pattern,'
-  + 'polygon,polyline,rect,switch,symbol,text,textpath,tspan,use,view',
-  true
-);
-
-var isPreTag = function (tag) { return tag === 'pre'; };
-
-var isReservedTag = function (tag) {
-  return isHTMLTag(tag) || isSVG(tag);
-};
-
-function getTagNamespace(tag) {
-  if (isSVG(tag)) {
-    return 'svg';
-  }
-  // basic support for MathML
-  // note it doesn't support other MathML elements being component roots
-  if (tag === 'math') {
-    return 'math';
-  }
-}
-
-var isTextInputType = makeMap('text,number,password,search,email,tel,url');
-
 function transformNode(el) {
   var exp = getAndRemoveAttr(el, 'class');
 
@@ -2943,19 +2368,6 @@ var klass = {
   transformNode: transformNode,
   genData: genData$1,
 };
-
-var parseStyleText = cached(function (cssText) {
-  var res = {};
-  var listDelimiter = /;(?![^(]*\))/g;
-  var propertyDelimiter = /:(.+)/;
-  cssText.split(listDelimiter).forEach(function (item) {
-    if (item) {
-      var tmp = item.split(propertyDelimiter);
-      tmp.length > 1 && (res[tmp[0].trim()] = tmp[1].trim());
-    }
-  });
-  return res;
-});
 
 function transformNode$1(el) {
   var exp = getAndRemoveAttr(el, 'style');
@@ -2995,12 +2407,34 @@ var baseOptions = {
   modules: modules,
   isPreTag: isPreTag,
   isUnaryTag: isUnaryTag,
-  mustUseProp: mustUseProp,
   canBeLeftOpenTag: canBeLeftOpenTag,
   isReservedTag: isReservedTag,
   getTagNamespace: getTagNamespace,
   staticKeys: genStaticKeys(modules),
 };
+
+// `createCompilerCreator` allows creating compilers that use alternative
+// parser/optimizer/codegen, e.g the SSR optimizing compiler.
+// Here we just export a default compiler using the default parts.
+var createCompiler = createCompilerCreator(function (template, options) {
+  // 生成template ast
+  var ast = parse(("<block>" + template + "</block>"), options);
+
+  // 优化
+  if (options.optimize !== false) {
+    optimize(ast, options);
+  }
+
+  // 生成code
+  var code = generate(ast, options);
+
+  return {
+    ast: ast,
+    render: code.render,
+    staticRenderFns: code.staticRenderFns,
+    header: code.header,
+  };
+});
 
 var ref = createCompiler(baseOptions);
 var compile = ref.compile;
@@ -3008,5 +2442,3 @@ var compileToFunctions = ref.compileToFunctions;
 
 exports.compile = compile;
 exports.compileToFunctions = compileToFunctions;
-exports.generateCodeFrame = generateCodeFrame;
-exports.parseComponent = parseComponent;

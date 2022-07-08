@@ -1,4 +1,4 @@
-import Vue from '@/web/entry-runtime';
+import Vue from '@/core/index';
 
 import { gloablA } from './globalComA';
 import { Page } from './page';

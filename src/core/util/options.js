@@ -12,7 +12,7 @@ import {
   isPlainObject,
   isPrimitive,
   isUndef,
-} from 'shared/util';
+} from 'shared/util/index';
 
 import config from '../config';
 import { unicodeRegExp } from './lang';

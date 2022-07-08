@@ -1,9 +1,5 @@
-import { hasExpression, transformExpression } from 'compiler/parser/expression-parser';
-
-import {
-  getAndRemoveAttr,
-  baseWarn,
-} from 'compiler/helpers';
+import { hasExpression, transformExpression } from '../parser/expression-parser';
+import { getAndRemoveAttr, baseWarn } from '../helpers';
 
 function transformNode(el) {
   const exp = getAndRemoveAttr(el, 'class');

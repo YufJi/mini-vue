@@ -19,15 +19,6 @@ export function renderStatic(index, isInFor) {
   return tree;
 }
 
-/**
- * Runtime helper for v-once.
- * Effectively it means marking the node as static with a unique key.
- */
-export function markOnce(tree, index, key) {
-  markStatic(tree, `__once__${index}${key ? `_${key}` : ''}`, true);
-  return tree;
-}
-
 function markStatic(tree, key, isOnce) {
   if (Array.isArray(tree)) {
     for (let i = 0; i < tree.length; i++) {

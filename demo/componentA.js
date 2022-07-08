@@ -30,22 +30,6 @@ export const ComponentA = {
     console.log('updated::', this.$props);
   },
   methods: {
-    eventBinder(method, modifiers) {
-      const vm = this;
-      const handler = function ($event) {
-        if (modifiers.stop) {
-          $event.stopPropagation();
-        }
-
-        if (typeof method === 'string') {
-          vm[method].call(vm, $event);
-        } else if (typeof method === 'function') {
-          method.call(null, $event);
-        }
-      };
-      handler.displayName = method;
-      return handler;
-    },
     tiggerEvent(name, detail, option = {}) {
       const { bubbles, composed } = option;
       const event = new Event(name, {

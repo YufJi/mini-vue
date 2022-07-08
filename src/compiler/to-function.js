@@ -1,4 +1,4 @@
-import { noop, extend } from 'shared/util';
+import { noop, extend } from 'shared/util/index';
 import { warn as baseWarn, tip } from 'core/util/debug';
 import { generateCodeFrame } from './codeframe';
 
@@ -14,11 +14,7 @@ function createFunction(code, errors) {
 export function createCompileToFunctionFn(compile) {
   const cache = Object.create(null);
 
-  return function compileToFunctions(
-    template,
-    options,
-    vm,
-  ) {
+  return function compileToFunctions(template, options, vm) {
     options = extend({}, options);
     const warn = options.warn || baseWarn;
     delete options.warn;

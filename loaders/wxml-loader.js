@@ -1,24 +1,20 @@
 const compiler = require('../dist/vue-template-compiler');
 
 module.exports = function (source) {
-  const result = compiler.compile(wrapSourceTemplate(source));
+  const result = compiler.compile(source);
 
   const { header = [], render, staticRenderFns } = result;
 
-  const code = `${header.join('\n')}\n`
+  let code = `${header.join('\n')}\n`
      + `var render = ${render}\n`
-     + `var staticRenderFns = [${staticRenderFns}]\n`;
+     + `var staticRenderFns = [${staticRenderFns}]\n`
+     + 'export { render, staticRenderFns }\n';
 
-  console.log('code--------');
-  console.log(code);
-  console.log('--------code');
-  return `${code}
+  if (this.mode === 'development') {
+    const { resourcePath } = this;
+    code += `console.log(${JSON.stringify(resourcePath)})\n`
+          + `console.log(${JSON.stringify(code)})`;
+  }
 
-          export { render, staticRenderFns }
-          `;
+  return code;
 };
-
-// 方便模板解析
-function wrapSourceTemplate(template) {
-  return `<block>${template}</block>`;
-}

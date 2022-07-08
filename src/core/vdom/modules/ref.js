@@ -1,4 +1,4 @@
-import { remove, isDef } from 'shared/util';
+import { remove, isDef } from 'shared/util/index';
 
 export default {
   create(_, vnode) {

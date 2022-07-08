@@ -1,6 +1,4 @@
 import config from '../config';
-import { isUpdatingChildComponent } from './lifecycle';
-
 import {
   warn,
   bind,
@@ -14,8 +12,10 @@ import {
   isPlainObject,
   isReservedAttribute,
   invokeWithErrorHandling,
+  parseSinglePath,
 } from '../util/index';
 import { queueUpdater } from '../scheduler';
+import { isUpdatingChildComponent } from './lifecycle';
 
 const sharedPropertyDefinition = {
   enumerable: true,
@@ -37,6 +37,7 @@ export function proxy(target, sourceKey, key) {
 export function initState(vm) {
   vm._watchers = [];
   const opts = vm.$options;
+
   if (opts.props) initProps(vm, opts.props);
 
   if (opts.methods) initMethods(vm, opts.methods);
@@ -194,6 +195,34 @@ export function stateMixin(Vue) {
   }
   Object.defineProperty(Vue.prototype, '$data', dataDef);
   Object.defineProperty(Vue.prototype, '$props', propsDef);
+
+  Vue.prototype.setData = function (data) {
+    const vm = this;
+
+    for (const key in data) {
+      if (Object.hasOwnProperty.call(data, key)) {
+        const value = data[key];
+        // 解析key
+        const paths = parseSinglePath(key);
+        let parentObj;
+        let curKey;
+        let temp = vm;
+
+        for (let i = 0; i < paths.length; i++) {
+          curKey = paths[i]; // curKey
+          parentObj = temp; // parentObj
+          temp = temp[curKey];
+        }
+
+        if (parentObj) {
+          parentObj[curKey] = value;
+        }
+      }
+    }
+
+    // update
+    queueUpdater(vm);
+  };
 }
 
 export function defineReactive(obj, key, val, customSetter) {

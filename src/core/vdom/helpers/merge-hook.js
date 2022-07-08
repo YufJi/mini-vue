@@ -1,4 +1,4 @@
-import { remove, isDef, isUndef, isTrue } from 'shared/util';
+import { remove, isDef, isUndef, isTrue } from 'shared/util/index';
 import VNode from '../vnode';
 import { createFnInvoker } from './update-listeners';
 

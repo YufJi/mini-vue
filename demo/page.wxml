@@ -12,12 +12,12 @@
 
 <template is="template-c"></template>
 
-<div bind:click="fn2">fn2</div>
+<div bind:tap="fn2">fn2</div>
 
 <header class="abc-{{name}} sad" style="color: {{color}}; font-size: 12px">
-  <h1 bind:click="fn2">外部 fn2 clickable </h1>
+  <h1 bind:tap="fn2">外部 fn2 clickable </h1>
 
-  <h1 bind:click="fn1">外部  fn1 clickable </h1>
+  <h1 bind:tap="fn1">外部  fn1 clickable </h1>
 </header>
 
 <component-a message="{{message}}" class="component-a" bindclick="{{utils.sing}}">

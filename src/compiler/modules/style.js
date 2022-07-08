@@ -1,9 +1,6 @@
-import { hasExpression, transformExpression } from 'compiler/parser/expression-parser';
-import { parseStyleText } from 'web/util/style';
-import {
-  getAndRemoveAttr,
-  baseWarn,
-} from 'compiler/helpers';
+import { parseStyleText } from 'shared/util/index';
+import { hasExpression, transformExpression } from '../parser/expression-parser';
+import { getAndRemoveAttr, baseWarn } from '../helpers';
 
 function transformNode(el) {
   const exp = getAndRemoveAttr(el, 'style');

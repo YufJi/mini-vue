@@ -1,4 +1,4 @@
-import { noop } from 'shared/util';
+import { noop } from 'shared/util/index';
 
 import config from '../config';
 

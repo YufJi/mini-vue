@@ -11,9 +11,8 @@ import {
   emptyObject,
   validateProp,
   invokeWithErrorHandling,
-  parseSinglePath,
 } from '../util/index';
-import { queueUpdater } from '../scheduler/index';
+import { queueUpdater } from '../scheduler';
 
 export let activeInstance = null;
 export let isUpdatingChildComponent = false;
@@ -52,34 +51,6 @@ export function initLifecycle(vm) {
 }
 
 export function lifecycleMixin(Vue) {
-  Vue.prototype.setData = function (data) {
-    const vm = this;
-
-    for (const key in data) {
-      if (Object.hasOwnProperty.call(data, key)) {
-        const value = data[key];
-        // 解析key
-        const paths = parseSinglePath(key);
-        let parentObj;
-        let curKey;
-        let temp = vm;
-
-        for (let i = 0; i < paths.length; i++) {
-          curKey = paths[i]; // curKey
-          parentObj = temp; // parentObj
-          temp = temp[curKey];
-        }
-
-        if (parentObj) {
-          parentObj[curKey] = value;
-        }
-      }
-    }
-
-    // update
-    queueUpdater(vm);
-  };
-
   Vue.prototype._updateComponent = function () {
     const vm = this;
     /* istanbul ignore if */

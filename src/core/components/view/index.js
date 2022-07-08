@@ -1,5 +1,3 @@
-import './index.less';
-
 export default {
   name: 'tiny-view',
   render(data, ctx) {

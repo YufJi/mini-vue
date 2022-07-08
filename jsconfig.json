@@ -2,12 +2,9 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "compiler/*": ["./src/compiler"],
-            "core/*": ["./src/core"],
-            "sfc/*": ["./src/sfc"],
-            "shared/*": ["./src/shared"],
-            "web/*": ["./src/web"]
-        },
-        "experimentalDecorators": true
+            "compiler/*": ["./src/compiler/*"],
+            "core/*": ["./src/core/*"],
+            "shared/*": ["./src/shared/*"]
+        }
     }
 }

@@ -1,5 +1,5 @@
-import config from '../config';
-import { callHook } from '../instance/lifecycle';
+import config from './config';
+import { callHook } from './instance/lifecycle';
 
 import {
   warn,
@@ -7,7 +7,7 @@ import {
   devtools,
   inBrowser,
   isIE,
-} from '../util/index';
+} from './util/index';
 
 export const MAX_UPDATE_COUNT = 100;
 

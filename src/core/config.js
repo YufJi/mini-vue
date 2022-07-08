@@ -2,7 +2,12 @@ import {
   no,
   noop,
   identity,
-} from 'shared/util';
+  makeMap,
+
+  isReservedTag,
+  getTagNamespace,
+  isUnknownElement,
+} from 'shared/util/index';
 
 import { LIFECYCLE_HOOKS } from 'shared/constants';
 
@@ -58,35 +63,29 @@ export default ({
    * Check if a tag is reserved so that it cannot be registered as a
    * component. This is platform-dependent and may be overwritten.
    */
-  isReservedTag: no,
+  isReservedTag,
 
   /**
    * Check if an attribute is reserved so that it cannot be used as a component
    * prop. This is platform-dependent and may be overwritten.
    */
-  isReservedAttr: no,
+  isReservedAttr: makeMap('style,class'),
 
   /**
    * Check if a tag is an unknown element.
    * Platform-dependent.
    */
-  isUnknownElement: no,
+  isUnknownElement,
 
   /**
    * Get the namespace of an element
    */
-  getTagNamespace: noop,
+  getTagNamespace,
 
   /**
    * Parse the real tag name for the specific platform.
    */
   parsePlatformTagName: identity,
-
-  /**
-   * Check if an attribute must be bound using property, e.g. value
-   * Platform-dependent.
-   */
-  mustUseProp: no,
 
   /**
    * Perform updates asynchronously. Intended to be used by Vue Test Utils

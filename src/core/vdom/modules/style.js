@@ -1,5 +1,13 @@
-import { cached, camelize, extend, isDef, isUndef, hyphenate } from 'shared/util';
-import { getStyle, normalizeStyleBinding } from '../../util/style';
+import {
+  cached,
+  camelize,
+  extend,
+  isDef,
+  isUndef,
+  hyphenate,
+  getStyle,
+  normalizeStyleBinding,
+} from 'shared/util/index';
 
 const cssVarRE = /^--/;
 const importantRE = /\s*!important$/;
@@ -11,16 +19,7 @@ const setProp = (el, name, val) => {
     el.style.setProperty(hyphenate(name), val.replace(importantRE, ''), 'important');
   } else {
     const normalizedName = normalize(name);
-    if (Array.isArray(val)) {
-      // Support values array created by autoprefixer, e.g.
-      // {display: ["-webkit-box", "-ms-flexbox", "flex"]}
-      // Set them one by one, and the browser will only set those it can recognize
-      for (let i = 0, len = val.length; i < len; i++) {
-        el.style[normalizedName] = val[i];
-      }
-    } else {
-      el.style[normalizedName] = val;
-    }
+    el.style[normalizedName] = val;
   }
 };
 

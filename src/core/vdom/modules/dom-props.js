@@ -1,5 +1,4 @@
-import { isDef, isUndef, extend, toNumber } from 'shared/util';
-import { isSVG } from '../../util/index';
+import { isDef, isUndef, extend, toNumber, isSVG } from 'shared/util/index';
 
 let svgContainer;
 

@@ -1,4 +1,4 @@
-import { namespaceMap } from '../util/index';
+import { namespaceMap } from 'shared/util/index';
 
 export function createElement(tagName, vnode) {
   const elm = document.createElement(tagName);

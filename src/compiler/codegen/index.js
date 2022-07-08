@@ -1,8 +1,7 @@
-import { camelize, no, extend } from 'shared/util';
+import { camelize, no, extend } from 'shared/util/index';
 
 import { baseWarn, pluckModuleFunction } from '../helpers';
 import { transformExpression } from '../parser/expression-parser';
-import { emptySlotScopeToken } from '../parser/index';
 import { transformText } from '../parser/text-parser';
 import { genHandlers } from './events';
 

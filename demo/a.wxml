@@ -1,10 +1,10 @@
 <template name="template-a">
-  <div bind:click="fn2">start 我是 template a click fn2</div>
+  <div bind:tap="fn2">start 我是 template a click fn2</div>
 
   <div wx:for="{{list}}">item: {{item}}</div>
   <div>{{message}}</div>
 
-   <div bind:click="fn2">end 我是 template a</div>
+   <div bind:tap="fn2">end 我是 template a</div>
 </template>
 
 <template name="template-b">

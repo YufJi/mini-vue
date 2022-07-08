@@ -1,4 +1,4 @@
-import { emptyObject } from 'shared/util';
+import { emptyObject } from 'shared/util/index';
 
 /* eslint-disable no-unused-vars */
 export function baseWarn(msg, range) {
@@ -13,7 +13,8 @@ export function pluckModuleFunction(modules, key) {
 }
 
 export function addProp(el, name, value, range) {
-  (el.props || (el.props = [])).push(rangeSetItem({ name, value }, range));
+  const props = (el.props || (el.props = []));
+  props.push(rangeSetItem({ name, value }, range));
   el.plain = false;
 }
 
@@ -33,7 +34,7 @@ function prependModifierMarker(symbol, name) {
   return symbol + name; // mark the event as captured
 }
 
-export function addHandler(el, name, value, modifiers, important, warn, range) {
+export function addHandler(el, name, value, modifiers, warn, range) {
   modifiers = modifiers || emptyObject;
   // warn prevent and passive modifier
   /* istanbul ignore if */
@@ -68,15 +69,7 @@ export function addHandler(el, name, value, modifiers, important, warn, range) {
     newHandler.modifiers = modifiers;
   }
 
-  const handlers = events[name];
-  /* istanbul ignore if */
-  if (Array.isArray(handlers)) {
-    important ? handlers.unshift(newHandler) : handlers.push(newHandler);
-  } else if (handlers) {
-    events[name] = important ? [newHandler, handlers] : [handlers, newHandler];
-  } else {
-    events[name] = newHandler;
-  }
+  events[name] = newHandler;
 
   el.plain = false;
 }

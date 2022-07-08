@@ -1,10 +1,9 @@
-import { genStaticKeys } from 'shared/util';
 import {
+  genStaticKeys,
   isPreTag,
-  mustUseProp,
   isReservedTag,
   getTagNamespace,
-} from '../util/index';
+} from 'shared/util/index';
 
 import modules from './modules/index';
 import { isUnaryTag, canBeLeftOpenTag } from './util';
@@ -14,7 +13,6 @@ export const baseOptions = {
   modules,
   isPreTag,
   isUnaryTag,
-  mustUseProp,
   canBeLeftOpenTag,
   isReservedTag,
   getTagNamespace,

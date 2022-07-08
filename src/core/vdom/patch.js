@@ -1,17 +1,6 @@
 /* eslint-disable no-lonely-if */
-/**
- * Virtual DOM patching algorithm based on Snabbdom by
- * Simon Friis Vindum (@paldepind)
- * Licensed under the MIT License
- * https://github.com/paldepind/snabbdom/blob/master/LICENSE
- *
- * modified by Evan You (@yyx990803)
- *
- * Not type-checking this because this file is perf-critical and the cost
- * of making flow understand it is not worth it.
- */
 
-import { isTextInputType } from 'web/util/element';
+import { isTextInputType } from 'shared/util/index';
 import config from '../config';
 import { activeInstance } from '../instance/lifecycle';
 import {

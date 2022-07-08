@@ -20,31 +20,28 @@ const resolve = (p) => {
 const builds = {
   // Runtime only (CommonJS). Used by bundlers e.g. Webpack & Browserify
   'web-runtime-cjs-dev': {
-    entry: resolve('web/entry-runtime.js'),
+    entry: resolve('core/index.js'),
     dest: resolve('dist/vue.runtime.common.dev.js'),
     format: 'cjs',
     env: 'development',
   },
-  'web-runtime-cjs-prod': {
-    entry: resolve('web/entry-runtime.js'),
-    dest: resolve('dist/vue.runtime.common.prod.js'),
-    format: 'cjs',
-    env: 'production',
-  },
   // Runtime only ES modules build (for bundlers)
   'web-runtime-esm': {
-    entry: resolve('web/entry-runtime.js'),
+    entry: resolve('core/index.js'),
     dest: resolve('dist/vue.runtime.esm.js'),
     format: 'es',
   },
   // Web compiler (CommonJS).
   'web-compiler': {
-    entry: resolve('web/entry-compiler.js'),
+    entry: resolve('compiler/index.js'),
     dest: resolve('dist/vue-template-compiler.js'),
     format: 'cjs',
     external: [
       'he',
-      'de-indent',
+      '@babel/parser',
+      '@babel/traverse',
+      '@babel/generator',
+      '@babel/types',
     ],
   },
 };
