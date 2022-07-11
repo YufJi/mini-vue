@@ -103,8 +103,8 @@ function isStatic(node) {
 
   return !!((
     !node.hasBindings // no dynamic bindings
-    && !node.if // not v-if or v-else
-    && !node.for // not v-for
+    && !node.if // not if or else
+    && !node.for // not for
     && !isBuiltInTag(node.tag) // not a built-in
     && isPlatformReservedTag(node.tag) // not a component
     && !isDirectChildOfBlockFor(node)

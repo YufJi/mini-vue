@@ -399,11 +399,11 @@ function parseArrIndex(path, state) {
 function parseIdent(path, state) {
   const startIndex = state.index;
   const ch = path[startIndex];
-  if (/^[_a-zA-Z$]/.test(ch)) {
+  if (/^[a-zA-Z$_]/.test(ch)) {
     state.index++;
     while (state.index < state.length) {
       const ch = path[state.index];
-      if (/^[_a-zA-Z0-9$]/.test(ch)) {
+      if (/^[a-zA-Z0-9$_]/.test(ch)) {
         state.index++;
         continue;
       }

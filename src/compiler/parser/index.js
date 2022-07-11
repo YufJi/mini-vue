@@ -78,7 +78,7 @@ export function parse(template, options) {
     }
     // tree management
     if (!stack.length && element !== root) {
-      // allow root elements with v-if, v-else-if and v-else
+      // allow root elements with if, elseif and else
       if (root.if && (element.elseif || element.else)) {
         addIfCondition(root, {
           exp: element.elseif,

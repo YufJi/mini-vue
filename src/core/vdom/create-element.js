@@ -36,10 +36,6 @@ export function createElement(context, tag, data, children, normalizationType, a
 }
 
 export function _createElement(context, tag, data, children, normalizationType) {
-  // object syntax in v-bind
-  if (isDef(data) && isDef(data.is)) {
-    tag = data.is;
-  }
   if (!tag) {
     // in case of component :is set to falsy value
     return createEmptyVNode();

@@ -1,5 +1,3 @@
-export const SSR_ATTR = 'data-server-rendered';
-
 export const ASSET_TYPES = [
   'component',
 ];
@@ -14,5 +12,4 @@ export const LIFECYCLE_HOOKS = [
   'beforeDestroy',
   'destroyed',
   'errorCaptured',
-  'serverPrefetch',
 ];

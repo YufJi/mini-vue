@@ -1,7 +1,7 @@
 import { isObject, isDef, hasSymbol } from 'core/util/index';
 
 /**
- * Runtime helper for rendering v-for lists.
+ * Runtime helper for rendering for lists.
  */
 export function renderList(val, render) {
   let ret;

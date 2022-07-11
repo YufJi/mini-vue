@@ -668,7 +668,7 @@ var visitor = {
     var nameScope = findScope(this.xmlScope, node.name);
 
     if (!nameScope) {
-      node.name = "_a['" + (node.name) + "']";
+      node.name = "$$data['" + (node.name) + "']";
     } else if (nameScope === 'wxs') {
       var parentType = parent && parent.type;
       if (node.type === 'Identifier' && !(parentType === 'MemberExpression' && parent.object === node)) {
@@ -884,7 +884,7 @@ function parse(template, options) {
     }
     // tree management
     if (!stack.length && element !== root) {
-      // allow root elements with v-if, v-else-if and v-else
+      // allow root elements with if, elseif and else
       if (root.if && (element.elseif || element.else)) {
         addIfCondition(root, {
           exp: element.elseif,
@@ -1495,8 +1495,8 @@ function isStatic(node) {
 
   return !!((
     !node.hasBindings // no dynamic bindings
-    && !node.if // not v-if or v-else
-    && !node.for // not v-for
+    && !node.if // not if or else
+    && !node.for // not for
     && !isBuiltInTag(node.tag) // not a built-in
     && isPlatformReservedTag(node.tag) // not a component
     && !isDirectChildOfBlockFor(node)
@@ -1530,7 +1530,7 @@ function transformText(str, scope, config) {
 
   var ret = transformExpressionByPart(str, scope, config);
 
-  return ret.map(function (item) { return ("_s(" + item + ")"); }).join(' + ');
+  return ret.map(function (item) { return ("$toString(" + item + ")"); }).join(' + ');
 }
 
 function genHandlers(events, state) {
@@ -1552,7 +1552,7 @@ function genHandler(handler, state) {
     return 'function(){}';
   }
 
-  return ("_x.$eventBinder(" + (transformExpression(handler.value, state.scope)) + ", " + (JSON.stringify(handler.modifiers)) + ")");
+  return ("$$ctx.$eventBinder(" + (transformExpression(handler.value, state.scope)) + ", " + (JSON.stringify(handler.modifiers)) + ")");
 }
 
 var CodegenState = function CodegenState(options) {
@@ -1584,7 +1584,7 @@ function makeScope(content) {
   }
 }
 
-var genRenderFn = function (code) { return ("function(_a, _x) {\n  const _c = _x._self._c || _x.$createElement;\n  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember, $renderTemplate } = _x;\n\n  return " + code + "\n}"); };
+var genRenderFn = function (code) { return ("function($$data, $$ctx) {\n  const _c = $$ctx._self._c || $$ctx.$createElement;\n  const { $toString, $renderList, $renderSlot, $renderStatic, $createTextVNode, $createEmptyVNode, $getWxsMember, $getLooseDataMember, $renderTemplate } = $$ctx;\n\n  return " + code + "\n}"); };
 
 function generate(
   ast,
@@ -1668,7 +1668,7 @@ function genElement(el, state) {
 function genStatic(el, state) {
   el.staticProcessed = true;
   state.staticRenderFns.push(genRenderFn(genElement(el, state)));
-  return ("_m(_x," + (state.staticRenderFns.length - 1) + "," + (el.staticInFor ? 'true' : 'false') + ")");
+  return ("$renderStatic($$ctx," + (state.staticRenderFns.length - 1) + "," + (el.staticInFor ? 'true' : 'false') + ")");
 }
 
 function genIf(el, state, altGen, altEmpty) {
@@ -1683,7 +1683,7 @@ function genIfConditions(
   altEmpty
 ) {
   if (!conditions.length) {
-    return altEmpty || '_e()';
+    return altEmpty || '$createEmptyVNode()';
   }
 
   var condition = conditions.shift();
@@ -1726,7 +1726,7 @@ function genFor(el, state, altGen, altHelper) {
 
   state.scope.push(makeScope(( obj = {}, obj[forItem] = true, obj[forIndex] = true, obj )));
 
-  var code = (altHelper || '_l') + "((" + exp + "),"
+  var code = (altHelper || '$renderList') + "((" + exp + "),"
     + "function(" + forItem + "," + forIndex + "){"
       + "return " + ((altGen || genElement)(el, state))
     + '})';
@@ -1780,7 +1780,7 @@ function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
   var children = el.children;
   if (children.length) {
     var el$1 = children[0];
-    // optimize single v-for
+    // optimize single for
     if (children.length === 1
       && el$1.for
       && el$1.tag !== 'template'
@@ -1839,19 +1839,19 @@ function genNode(node, state) {
 }
 
 function genText(text, state) {
-  return ("_v(" + (text.type === 2
-    ? transformText(text.expression, state.scope) // no need for () because already wrapped in _s()
+  return ("$createTextVNode(" + (text.type === 2
+    ? transformText(text.expression, state.scope) // no need for () because already wrapped in $toString()
     : transformSpecialNewlines(JSON.stringify(text.text))) + ")");
 }
 
 function genComment(comment) {
-  return ("_e(" + (JSON.stringify(comment.text)) + ")");
+  return ("$createEmptyVNode(" + (JSON.stringify(comment.text)) + ")");
 }
 
 function genSlot(el, state) {
   var slotName = transformExpression(el.slotName);
   var children = genChildren(el, state);
-  var res = "_t(_x, " + slotName + (children ? (",function(){return " + children + "}") : '');
+  var res = "$renderSlot($$ctx, " + slotName + (children ? (",function(){return " + children + "}") : '');
   var attrs = el.attrs
     ? genProps((el.attrs || []).map(function (attr) { return ({
       // slot props are camelized
@@ -1879,7 +1879,7 @@ function genWxs(el, state) {
     state.rootScope[module] = 'wxs';
   }
 
-  return '_e()';
+  return '$createEmptyVNode()';
 }
 
 function genTemplate(el, state) {
@@ -1888,7 +1888,7 @@ function genTemplate(el, state) {
     var is = transformExpression(exp, state.scope);
     var data = (exp = el.templateData) ? transformExpression(exp = el.templateData, state.scope, { forceObject: true }) : '{}';
 
-    return ("$renderTemplate($templates[" + is + "], " + data + ", _x)");
+    return ("$renderTemplate($templates[" + is + "], " + data + ", $$ctx)");
   } else if (el.templateDefine) {
     // 拿到children
     var children = genChildren(el, state, true);
@@ -1896,7 +1896,7 @@ function genTemplate(el, state) {
 
     state.innerTpls[el.templateDefine] = genRenderFn(code);
 
-    return '_e()';
+    return '$createEmptyVNode()';
   }
 }
 
@@ -1905,13 +1905,13 @@ function genImport(el, state) {
     state.importTplDeps.push(el.src);
   }
 
-  return '_e()';
+  return '$createEmptyVNode()';
 }
 
 function genInclude(el, state) {
-  var code = '_e()';
+  var code = '$createEmptyVNode()';
   if (el.src) {
-    code = "require('" + (el.src) + "').render(_a, _x)";
+    code = "require('" + (el.src) + "').render($$data, $$ctx)";
   }
 
   return code;
@@ -1947,8 +1947,7 @@ var LIFECYCLE_HOOKS = [
   'updated',
   'beforeDestroy',
   'destroyed',
-  'errorCaptured',
-  'serverPrefetch' ];
+  'errorCaptured' ];
 
 var config = ({
   /**

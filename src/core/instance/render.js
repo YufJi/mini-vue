@@ -13,7 +13,7 @@ import { defineReactive } from './state';
 
 export function initRender(vm) {
   vm._vnode = null; // the root of the child tree
-  vm._staticTrees = null; // v-once cached trees
+  vm._staticTrees = null; // once cached trees
 
   const options = vm.$options;
   const parentVnode = vm.$vnode = options._parentVnode; // the placeholder node in parent tree
@@ -73,9 +73,6 @@ export function renderMixin(Vue) {
       // when parent component is patched.
       currentRenderingInstance = vm;
       // 包一层vnode，用来模拟ShadowRoot
-
-      // todo 处理propsData
-
       vnode = new VNode(
         name || _componentTag,
         { attrs: propsData },

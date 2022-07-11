@@ -19,5 +19,5 @@ function genHandler(handler, state) {
     return 'function(){}';
   }
 
-  return `_x.$eventBinder(${transformExpression(handler.value, state.scope)}, ${JSON.stringify(handler.modifiers)})`;
+  return `$$ctx.$eventBinder(${transformExpression(handler.value, state.scope)}, ${JSON.stringify(handler.modifiers)})`;
 }

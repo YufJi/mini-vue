@@ -4,7 +4,7 @@
 export function renderStatic(ctx, index, isInFor) {
   const cached = ctx._staticTrees || (ctx._staticTrees = []);
   let tree = cached[index];
-  // if has already-rendered static tree and not inside v-for,
+  // if has already-rendered static tree and not inside for,
   // we can reuse the same tree.
   if (tree && !isInFor) {
     return tree;

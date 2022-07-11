@@ -68,7 +68,7 @@ const visitor = {
     const nameScope = findScope(this.xmlScope, node.name);
 
     if (!nameScope) {
-      node.name = `_a['${node.name}']`;
+      node.name = `$$data['${node.name}']`;
     } else if (nameScope === 'wxs') {
       const parentType = parent && parent.type;
       if (node.type === 'Identifier' && !(parentType === 'MemberExpression' && parent.object === node)) {

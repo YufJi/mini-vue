@@ -36,9 +36,9 @@ function makeScope(content) {
   }
 }
 
-const genRenderFn = (code) => `function(_a, _x) {
-  const _c = _x._self._c || _x.$createElement;
-  const { _n, _s, _l, _t, _m, _v, _e, $getWxsMember, $getLooseDataMember, $renderTemplate } = _x;
+const genRenderFn = (code) => `function($$data, $$ctx) {
+  const _c = $$ctx._self._c || $$ctx.$createElement;
+  const { $toString, $renderList, $renderSlot, $renderStatic, $createTextVNode, $createEmptyVNode, $getWxsMember, $getLooseDataMember, $renderTemplate } = $$ctx;
 
   return ${code}
 }`;
@@ -126,7 +126,7 @@ export function genElement(el, state) {
 function genStatic(el, state) {
   el.staticProcessed = true;
   state.staticRenderFns.push(genRenderFn(genElement(el, state)));
-  return `_m(_x,${state.staticRenderFns.length - 1},${el.staticInFor ? 'true' : 'false'})`;
+  return `$renderStatic($$ctx,${state.staticRenderFns.length - 1},${el.staticInFor ? 'true' : 'false'})`;
 }
 
 export function genIf(el, state, altGen, altEmpty) {
@@ -141,7 +141,7 @@ function genIfConditions(
   altEmpty,
 ) {
   if (!conditions.length) {
-    return altEmpty || '_e()';
+    return altEmpty || '$createEmptyVNode()';
   }
 
   const condition = conditions.shift();
@@ -188,7 +188,7 @@ export function genFor(el, state, altGen, altHelper) {
     [forIndex]: true,
   }));
 
-  const code = `${altHelper || '_l'}((${exp}),`
+  const code = `${altHelper || '$renderList'}((${exp}),`
     + `function(${forItem},${forIndex}){`
       + `return ${(altGen || genElement)(el, state)}`
     + '})';
@@ -242,7 +242,7 @@ export function genChildren(el, state, checkSkip, altGenElement, altGenNode) {
   const { children } = el;
   if (children.length) {
     const el = children[0];
-    // optimize single v-for
+    // optimize single for
     if (children.length === 1
       && el.for
       && el.tag !== 'template'
@@ -303,20 +303,20 @@ function genNode(node, state) {
 }
 
 export function genText(text, state) {
-  return `_v(${text.type === 2
-    ? transformText(text.expression, state.scope) // no need for () because already wrapped in _s()
+  return `$createTextVNode(${text.type === 2
+    ? transformText(text.expression, state.scope) // no need for () because already wrapped in $toString()
     : transformSpecialNewlines(JSON.stringify(text.text))
   })`;
 }
 
 export function genComment(comment) {
-  return `_e(${JSON.stringify(comment.text)})`;
+  return `$createEmptyVNode(${JSON.stringify(comment.text)})`;
 }
 
 function genSlot(el, state) {
   const slotName = transformExpression(el.slotName);
   const children = genChildren(el, state);
-  let res = `_t(_x, ${slotName}${children ? `,function(){return ${children}}` : ''}`;
+  let res = `$renderSlot($$ctx, ${slotName}${children ? `,function(){return ${children}}` : ''}`;
   const attrs = el.attrs
     ? genProps((el.attrs || []).map((attr) => ({
       // slot props are camelized
@@ -343,7 +343,7 @@ function genWxs(el, state) {
     state.rootScope[module] = 'wxs';
   }
 
-  return '_e()';
+  return '$createEmptyVNode()';
 }
 
 function genTemplate(el, state) {
@@ -352,7 +352,7 @@ function genTemplate(el, state) {
     const is = transformExpression(exp, state.scope);
     const data = (exp = el.templateData) ? transformExpression(exp = el.templateData, state.scope, { forceObject: true }) : '{}';
 
-    return `$renderTemplate($templates[${is}], ${data}, _x)`;
+    return `$renderTemplate($templates[${is}], ${data}, $$ctx)`;
   } else if (el.templateDefine) {
     // 拿到children
     const children = genChildren(el, state, true);
@@ -360,7 +360,7 @@ function genTemplate(el, state) {
 
     state.innerTpls[el.templateDefine] = genRenderFn(code);
 
-    return '_e()';
+    return '$createEmptyVNode()';
   }
 }
 
@@ -369,13 +369,13 @@ function genImport(el, state) {
     state.importTplDeps.push(el.src);
   }
 
-  return '_e()';
+  return '$createEmptyVNode()';
 }
 
 function genInclude(el, state) {
-  let code = '_e()';
+  let code = '$createEmptyVNode()';
   if (el.src) {
-    code = `require('${el.src}').render(_a, _x)`;
+    code = `require('${el.src}').render($$data, $$ctx)`;
   }
 
   return code;
