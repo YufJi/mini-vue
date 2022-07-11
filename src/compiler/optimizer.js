@@ -51,6 +51,7 @@ function markStatic(node) {
         node.static = false;
       }
     }
+
     if (node.ifConditions) {
       for (let i = 1, l = node.ifConditions.length; i < l; i++) {
         const { block } = node.ifConditions[i];
@@ -65,26 +66,25 @@ function markStatic(node) {
 
 function markStaticRoots(node, isInFor) {
   if (node.type === 1) {
-    if (node.static || node.once) {
+    if (node.static) {
       node.staticInFor = isInFor;
     }
     // For a node to qualify as a static root, it should have children that
     // are not just static text. Otherwise the cost of hoisting out will
     // outweigh the benefits and it's better off to just always render it fresh.
-    if (node.static && node.children.length && !(
-      node.children.length === 1
-      && node.children[0].type === 3
-    )) {
+    if (node.static && node.children.length && (node.children.length !== 1 || node.children[0].type !== 3)) {
       node.staticRoot = true;
       return;
     } else {
       node.staticRoot = false;
     }
+
     if (node.children) {
       for (let i = 0, l = node.children.length; i < l; i++) {
         markStaticRoots(node.children[i], isInFor || !!node.for);
       }
     }
+
     if (node.ifConditions) {
       for (let i = 1, l = node.ifConditions.length; i < l; i++) {
         markStaticRoots(node.ifConditions[i].block, isInFor);
@@ -103,18 +103,25 @@ function isStatic(node) {
 
   return !!((
     !node.hasBindings // no dynamic bindings
-    && !node.if && !node.for // not v-if or v-for or v-else
+    && !node.if // not v-if or v-else
+    && !node.for // not v-for
     && !isBuiltInTag(node.tag) // not a built-in
     && isPlatformReservedTag(node.tag) // not a component
-    && !isDirectChildOfTemplateFor(node)
+    && !isDirectChildOfBlockFor(node)
     && Object.keys(node).every(isStaticKey)
   ) || node.pre);
 }
 
-function isDirectChildOfTemplateFor(node) {
+/**
+ * <
+ * <block wx:for="{{[1,2,3]}}">
+ *  {{ item }}
+ * </block>
+ */
+function isDirectChildOfBlockFor(node) {
   while (node.parent) {
     node = node.parent;
-    if (node.tag !== 'template') {
+    if (node.tag !== 'block') {
       return false;
     }
     if (node.for) {

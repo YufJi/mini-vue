@@ -2,7 +2,6 @@ import config from '../config';
 import { initProxy } from './proxy';
 import { initState } from './state';
 import { initRender } from './render';
-import { initEvents } from './events';
 import { mark, measure } from '../util/perf';
 import { initLifecycle, callHook } from './lifecycle';
 import { extend, mergeOptions, formatComponentName } from '../util/index';
@@ -48,7 +47,6 @@ export function initMixin(Vue) {
     // expose real self
     vm._self = vm;
     initLifecycle(vm);
-    initEvents(vm);
     initRender(vm);
     callHook(vm, 'beforeCreate');
     initState(vm);
@@ -77,7 +75,7 @@ export function initInternalComponent(vm, options) {
 
   const vnodeComponentOptions = parentVnode.componentOptions;
   opts.propsData = vnodeComponentOptions.propsData;
-  // opts._parentListeners = vnodeComponentOptions.listeners;
+
   opts._renderChildren = vnodeComponentOptions.children;
   opts._componentTag = vnodeComponentOptions.tag;
 

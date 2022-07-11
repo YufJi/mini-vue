@@ -1,8 +1,8 @@
 /**
  * Runtime helper for rendering static trees.
  */
-export function renderStatic(index, isInFor) {
-  const cached = this._staticTrees || (this._staticTrees = []);
+export function renderStatic(ctx, index, isInFor) {
+  const cached = ctx._staticTrees || (ctx._staticTrees = []);
   let tree = cached[index];
   // if has already-rendered static tree and not inside v-for,
   // we can reuse the same tree.
@@ -10,10 +10,10 @@ export function renderStatic(index, isInFor) {
     return tree;
   }
   // otherwise, render a fresh tree.
-  tree = cached[index] = this.$options.staticRenderFns[index].call(
-    this._renderProxy,
+  tree = cached[index] = ctx.$options.staticRenderFns[index].call(
+    ctx._renderProxy,
     null,
-    this, // for render fns generated for functional component templates
+    ctx, // for render fns generated for functional component templates
   );
   markStatic(tree, `__static__${index}`, false);
   return tree;

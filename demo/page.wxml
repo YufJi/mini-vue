@@ -12,7 +12,18 @@
 
 <template is="template-c"></template>
 
-<div bind:tap="fn2">fn2</div>
+<tiny-view bind:tap="fn2">fn2</tiny-view>
+<tiny-view>
+  <tiny-button 
+    class="btn"
+    style="color: {{color}};"
+    type="primary"
+    bind:tap="toogleHidden"
+  >
+    open/close hidden
+  </tiny-button>
+  <span hidden="{{hidden}}">hidden</span>
+</tiny-view>
 
 <header class="abc-{{name}} sad" style="color: {{color}}; font-size: 12px">
   <h1 bind:tap="fn2">外部 fn2 clickable </h1>
@@ -20,7 +31,7 @@
   <h1 bind:tap="fn1">外部  fn1 clickable </h1>
 </header>
 
-<component-a message="{{message}}" class="component-a" bindclick="{{utils.sing}}">
+<component-a message="{{message}}" class="component-a" bindtap="{{utils.sing}}">
   <tiny-view slot="slot-{{slot}}">a's slot {{slot}}</tiny-view>
 </component-a>
 
@@ -40,3 +51,11 @@
   <tiny-view>ddsad</tiny-view>
   <tiny-view>{{item}}</tiny-view>
 </block>
+
+<tiny-button bind:tap="setFn"> set fn: {{fn}} </tiny-button>
+
+<tiny-button bind:tap="{{fn}}"> fn handler </tiny-button>
+
+<div>
+  <span>i am static</span>
+</div>

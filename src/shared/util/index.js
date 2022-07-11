@@ -118,12 +118,12 @@ export function makeMap(str, expectsLowerCase) {
 /**
  * Check if a tag is a built-in tag.
  */
-export const isBuiltInTag = makeMap('slot', true);
+export const isBuiltInTag = makeMap('slot,template,import,include,wxs', true);
 
 /**
  * Check if an attribute is a reserved attribute.
  */
-export const isReservedAttribute = makeMap('key,ref,slot,slot-scope,is');
+export const isReservedAttribute = makeMap('key,ref,slot,is');
 
 /**
  * Remove an item from an array.

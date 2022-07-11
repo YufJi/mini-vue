@@ -8,19 +8,13 @@ import {
 } from 'shared/util/index';
 import { warn } from './debug';
 
-export function validateProp(
-  key,
-  propOptions,
-  propsData,
-  vm,
-) {
-  const prop = propOptions[key];
+export function validateProp(key, prop, propsData, vm) {
   const absent = !hasOwn(propsData, key);
   let value = propsData[key];
   // boolean casting
   const booleanIndex = getTypeIndex(Boolean, prop.type);
   if (booleanIndex > -1) {
-    if (absent && !hasOwn(prop, 'default')) {
+    if (absent && !hasOwn(prop, 'value')) {
       value = false;
     } else if (value === '' || value === hyphenate(key)) {
       // only cast empty string / same name to boolean if
@@ -46,10 +40,10 @@ export function validateProp(
  */
 function getPropDefaultValue(vm, prop, key) {
   // no default, return undefined
-  if (!hasOwn(prop, 'default')) {
+  if (!hasOwn(prop, 'value')) {
     return undefined;
   }
-  const def = prop.default;
+  const def = prop.value;
   // warn against non-factory defaults for Object & Array
   if (process.env.NODE_ENV !== 'production' && isObject(def)) {
     warn(
@@ -77,13 +71,7 @@ function getPropDefaultValue(vm, prop, key) {
 /**
  * Assert whether a prop is valid.
  */
-function assertProp(
-  prop,
-  name,
-  value,
-  vm,
-  absent,
-) {
+function assertProp(prop, name, value, vm, absent) {
   if (prop.required && absent) {
     warn(
       `Missing required prop: "${name}"`,

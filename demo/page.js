@@ -19,12 +19,14 @@ const mixinB = {
   },
 };
 
+let idx = 0;
+
 // 页面
 export const Page = {
-  name: 'page',
+  name: 'tiny-page',
   mixins: [mixinA, mixinB],
   data: {
-    fn: 'fn',
+    fn: `fn${idx}`,
     slot: 'abc',
     color: 'blue',
     hide: false,
@@ -32,6 +34,7 @@ export const Page = {
     // message: '外部默认messsgae',
     zero: 0,
     list: [1, 2, 3],
+    hidden: false,
   },
   created() {
     console.log('page created');
@@ -58,14 +61,26 @@ export const Page = {
     fn2(event) {
       console.log('event is:', event);
       this.setData({
+        color: 'green',
         message: 'xx',
         'list[3]': 888,
       });
 
       console.log('fn2');
     },
-    fn3(event) {
-      console.log('fn3', event);
+    fn0(event) {
+      console.log('fn0', event);
+    },
+    toogleHidden() {
+      this.setData({
+        hidden: !this.hidden,
+      });
+    },
+    setFn() {
+      idx++;
+      this.setData({
+        fn: `fn${idx%3}`,
+      });
     },
   },
   render: pageTemplate.render,

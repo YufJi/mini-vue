@@ -1,8 +1,7 @@
-import { isDef, isUndef } from 'shared/util/index';
+import { isDef, isUndef, supportsPassive, isUsingMicroTask } from '../../util/index';
+import { currentFlushTimestamp } from '../../scheduler';
 import { updateListeners } from '../helpers/index';
 import { emptyNode } from '../patch';
-import { supportsPassive, isUsingMicroTask } from '../../util/index';
-import { currentFlushTimestamp } from '../../scheduler';
 
 function createOnceHandler(target, event, handler, capture) {
   return function onceHandler() {
@@ -18,46 +17,6 @@ function createOnceHandler(target, event, handler, capture) {
 // safe to exclude.
 const useMicrotaskFix = isUsingMicroTask;
 
-function _add(name, handler, capture, passive) {
-  // async edge case #6566: inner click event triggers patch, event handler
-  // attached to outer element during patch, and triggered again. This
-  // happens because browsers fire microtask ticks between event propagation.
-  // the solution is simple: we save the timestamp when a handler is attached,
-  // and the handler would only fire if the event passed to it was fired
-  // AFTER it was attached.
-  if (useMicrotaskFix) {
-    const attachedTimestamp = currentFlushTimestamp;
-    const original = handler;
-    handler = original._wrapper = function (e) {
-      if (
-        // no bubbling, should always fire.
-        // this is just a safety net in case event.timeStamp is unreliable in
-        // certain weird environments...
-        e.target === e.currentTarget
-        // event is fired after handler attachment
-        || e.timeStamp >= attachedTimestamp
-        // bail for environments that have buggy event.timeStamp implementations
-        // #9462 iOS 9 bug: event.timeStamp is 0 after history.pushState
-        // #9681 QtWebEngine event.timeStamp is negative value
-        || e.timeStamp <= 0
-        // #9448 bail if event is fired in another document in a multi-page
-        // electron/nw.js app, since event.timeStamp will be using a different
-        // starting reference
-        || e.target.ownerDocument !== document
-      ) {
-        return original.apply(this, arguments);
-      }
-    };
-  }
-  target.addEventListener(
-    name,
-    handler,
-    supportsPassive
-      ? { capture, passive }
-      : capture,
-  );
-}
-
 const EVENT_BLACK_LIST = ['click'];
 const PRESS_DELAY = 350;
 const TAP_DISTANCE = 5;
@@ -68,7 +27,7 @@ const TAP_BLACK_LIST = [
   'TINY-MAP',
 ];
 
-function add(target, name, handler, capture, passive) {
+export function add(target, name, handler, capture, passive) {
   // async edge case #6566: inner click event triggers patch, event handler
   // attached to outer element during patch, and triggered again. This
   // happens because browsers fire microtask ticks between event propagation.
@@ -134,7 +93,7 @@ function add(target, name, handler, capture, passive) {
 
         const event = wrapEvent(target, e, name);
         handler.call(target, event);
-      });
+      }, capture);
       break;
 
     case 'touchstart':
@@ -160,7 +119,7 @@ function add(target, name, handler, capture, passive) {
         const event = wrapEvent(target, e, name);
 
         return callback.call(target, event);
-      }, capture);
+      }, supportsPassive ? { capture, passive } : capture);
 
       // 组件可能会取消touchmove事件，并用touchmove替换, 主要是swiper会用到
       if (name === 'touchmove') {
@@ -191,14 +150,13 @@ function add(target, name, handler, capture, passive) {
       break;
 
     default:
+      // 不在黑名单中
+      if (EVENT_BLACK_LIST.indexOf(name) === -1) {
+        target.addEventListener(name, (e) => {
+          callback.call(target, e);
+        }, capture);
+      }
       break;
-  }
-
-  // 不在黑名单中
-  if (EVENT_BLACK_LIST.indexOf(name) === -1) {
-    target.addEventListener(name, (e) => {
-      callback.call(target, e);
-    }, capture);
   }
 }
 
@@ -296,7 +254,7 @@ function addTapEvent(node) {
   node.addEventListener('touchcancel', touchcancelHandler);
 }
 
-export function wrapEvent(node, event, type) {
+function wrapEvent(node, event, type) {
   const targetElement = event.target;
 
   const target = {
@@ -380,7 +338,7 @@ function getCanvasTouches(node, touches) {
   }
 }
 
-function remove(target, name, handler, capture) {
+export function remove(target, name, handler, capture) {
   target.removeEventListener(
     name,
     handler._wrapper || handler,

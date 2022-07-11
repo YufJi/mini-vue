@@ -43,6 +43,7 @@ const getXlinkProp = (name) => {
 
 function updateAttrs(oldVnode, vnode) {
   const opts = vnode.componentOptions;
+
   if (isDef(opts) && opts.Ctor.options.inheritAttrs === false) {
     return;
   }
@@ -89,12 +90,7 @@ function setAttr(el, key, value, isInPre) {
     if (isFalsyAttrValue(value)) {
       el.removeAttribute(key);
     } else {
-      // technically allowfullscreen is a boolean attribute for <iframe>,
-      // but Flash expects a value of "true" when used on <embed> tag
-      value = key === 'allowfullscreen' && el.tagName === 'EMBED'
-        ? 'true'
-        : key;
-      el.setAttribute(key, value);
+      el.setAttribute(key, 'true');
     }
   } else if (isEnumeratedAttr(key)) {
     el.setAttribute(key, convertEnumeratedValue(key, value));

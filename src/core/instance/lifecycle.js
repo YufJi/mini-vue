@@ -1,7 +1,6 @@
 import config from '../config';
 import { mark, measure } from '../util/perf';
 import { createEmptyVNode } from '../vdom/vnode';
-import { updateComponentListeners } from './events';
 import { resolveSlots } from './render-helpers/resolve-slots';
 
 import {
@@ -131,8 +130,6 @@ export function lifecycleMixin(Vue) {
     vm.__patch__(vm._vnode, null);
     // fire destroyed hook
     callHook(vm, 'destroyed');
-    // turn off all instance listeners.
-    vm.$off();
     // remove __vue__ reference
     if (vm.$el) {
       vm.$el.__vue__ = null;
@@ -164,7 +161,7 @@ export function mountComponent(vm, el) {
   return vm;
 }
 
-export function updateChildComponent(vm, propsData, listeners, parentVnode, renderChildren) {
+export function updateChildComponent(vm, propsData, parentVnode, renderChildren) {
   if (process.env.NODE_ENV !== 'production') {
     isUpdatingChildComponent = true;
   }
@@ -188,11 +185,10 @@ export function updateChildComponent(vm, propsData, listeners, parentVnode, rend
   }
   vm.$options._renderChildren = renderChildren;
 
-  // update $attrs and $listeners hash
+  // update $attrs hash
   // these are also reactive so they may trigger child update if the child
   // used them during render
   vm.$attrs = parentVnode.data.attrs || emptyObject;
-  vm.$listeners = listeners || emptyObject;
 
   // update props
   if (propsData && vm.$options.props) {
@@ -207,12 +203,6 @@ export function updateChildComponent(vm, propsData, listeners, parentVnode, rend
     // keep a copy of raw propsData
     vm.$options.propsData = propsData;
   }
-
-  // update listeners
-  listeners = listeners || emptyObject;
-  const oldListeners = vm.$options._parentListeners;
-  vm.$options._parentListeners = listeners;
-  updateComponentListeners(vm, listeners, oldListeners);
 
   // resolve slots + force update if has children
   if (needsForceUpdate) {
@@ -232,8 +222,5 @@ export function callHook(vm, hook) {
     for (let i = 0, j = handlers.length; i < j; i++) {
       invokeWithErrorHandling(handlers[i], vm, null, vm, info);
     }
-  }
-  if (vm._hasHookEvent) {
-    vm.$emit(`hook:${hook}`);
   }
 }

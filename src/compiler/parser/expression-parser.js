@@ -7,7 +7,8 @@ export const fullExpressionTagReg = /^\{\{([^`{}]+)\}\}$/;
 export const expressionTagReg = /\{\{([^`{}]+)\}\}/g;
 
 function escapeString(str) {
-  return str.replace(/[\\']/g, '\\$&');
+  return str.replace(/[\\']/g, '\\$&')
+    .replace(/[\r\n]/g, '');
 }
 
 export function hasExpression(str = '') {

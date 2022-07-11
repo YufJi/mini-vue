@@ -14,6 +14,7 @@ import { defineReactive } from './state';
 export function initRender(vm) {
   vm._vnode = null; // the root of the child tree
   vm._staticTrees = null; // v-once cached trees
+
   const options = vm.$options;
   const parentVnode = vm.$vnode = options._parentVnode; // the placeholder node in parent tree
   const renderContext = parentVnode && parentVnode.context;
@@ -36,13 +37,9 @@ export function initRender(vm) {
   if (process.env.NODE_ENV !== 'production') {
     defineReactive.call(vm, vm, '$attrs', parentData && parentData.attrs || emptyObject, () => {
       !isUpdatingChildComponent && warn('$attrs is readonly.', vm);
-    }, true);
-    defineReactive.call(vm, vm, '$listeners', options._parentListeners || emptyObject, () => {
-      !isUpdatingChildComponent && warn('$listeners is readonly.', vm);
-    }, true);
+    });
   } else {
-    defineReactive.call(vm, vm, '$attrs', parentData && parentData.attrs || emptyObject, null, true);
-    defineReactive.call(vm, vm, '$listeners', options._parentListeners || emptyObject, null, true);
+    defineReactive.call(vm, vm, '$attrs', parentData && parentData.attrs || emptyObject, null);
   }
 }
 
@@ -63,7 +60,7 @@ export function renderMixin(Vue) {
 
   Vue.prototype._render = function () {
     const vm = this;
-    const { render, _parentVnode, name, _componentTag } = vm.$options;
+    const { render, _parentVnode, name, _componentTag, propsData } = vm.$options;
 
     // set parent vnode. this allows render functions to have access
     // to the data on the placeholder node.
@@ -75,10 +72,13 @@ export function renderMixin(Vue) {
       // separately from one another. Nested component's render fns are called
       // when parent component is patched.
       currentRenderingInstance = vm;
-      // 包一层vnode，用来模拟shadow root
+      // 包一层vnode，用来模拟ShadowRoot
+
+      // todo 处理propsData
+
       vnode = new VNode(
         name || _componentTag,
-        {},
+        { attrs: propsData },
         render.call(vm._renderProxy, vm, vm),
         undefined,
         undefined,

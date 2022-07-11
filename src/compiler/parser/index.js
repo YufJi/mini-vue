@@ -273,7 +273,8 @@ export function parse(template, options) {
         }
         let res;
         let child;
-        if (text !== ' ' && (res = text)) {
+
+        if (text !== ' ' && (res = text) && hasExpression(res)) {
           child = {
             type: 2,
             expression: res,
@@ -285,6 +286,7 @@ export function parse(template, options) {
             text,
           };
         }
+
         if (child) {
           if (process.env.NODE_ENV !== 'production' && options.outputSourceRange) {
             child.start = start;
@@ -322,7 +324,6 @@ export function processElement(element, options) {
     && !element.attrsList.length
   );
 
-  processBlock(element);
   processSlotContent(element);
   processSlotOutlet(element);
   processWxs(element);
@@ -472,12 +473,6 @@ function processSlotOutlet(el) {
         getRawBindingAttr(el, 'key'),
       );
     }
-  }
-}
-
-function processBlock(el) {
-  if (el.tag === 'block') {
-    el.tag = 'fragment';
   }
 }
 

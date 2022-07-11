@@ -1,11 +1,14 @@
+import { base, hover } from '../mixins';
+import * as template from './index.wxml';
+
+import './index.less';
+
 export default {
   name: 'tiny-view',
-  render(data, ctx) {
-    const _vm = this;
-    const h = _vm.$createElement;
-
-    const slot = ctx.$slots.default;
-
-    return h('fragment', {}, slot);
+  mixins: [base, hover],
+  listeners: {
+    tap: '_onViewTap',
   },
+  render: template.render,
+  staticRenderFns: template.staticRenderFns,
 };

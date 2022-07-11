@@ -68,7 +68,7 @@ export function _createElement(context, tag, data, children, normalizationType) 
     let Ctor;
     ns = (context.$vnode && context.$vnode.ns) || config.getTagNamespace(tag);
 
-    if (tag === 'fragment') {
+    if (tag === 'block') {
       vnode = children;
     } else if (config.isReservedTag(tag)) {
       // platform built-in elements

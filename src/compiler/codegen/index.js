@@ -126,7 +126,7 @@ export function genElement(el, state) {
 function genStatic(el, state) {
   el.staticProcessed = true;
   state.staticRenderFns.push(genRenderFn(genElement(el, state)));
-  return `_m(${state.staticRenderFns.length - 1}${el.staticInFor ? ',true' : ''})`;
+  return `_m(_x,${state.staticRenderFns.length - 1},${el.staticInFor ? 'true' : 'false'})`;
 }
 
 export function genIf(el, state, altGen, altEmpty) {
@@ -356,7 +356,7 @@ function genTemplate(el, state) {
   } else if (el.templateDefine) {
     // 拿到children
     const children = genChildren(el, state, true);
-    const code = `_c('fragment'${children ? `,${children}` : ''})`;
+    const code = `_c('block'${children ? `,${children}` : ''})`;
 
     state.innerTpls[el.templateDefine] = genRenderFn(code);
 

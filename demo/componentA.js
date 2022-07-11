@@ -3,18 +3,16 @@ import * as templateA from './componentA.wxml';
 // 页面组件
 export const ComponentA = {
   props: {
-    message: String,
+    message: {
+      type: String,
+      observer: 'messageChanged',
+    },
     list: Array,
   },
   data() {
     return {
       message: '我是内部message',
     };
-  },
-  watch: {
-    'list[2]': function (newVal, oldVal) {
-      console.log('watch:', newVal, oldVal);
-    },
   },
   created() {
     console.log('comA created');
@@ -30,6 +28,9 @@ export const ComponentA = {
     console.log('updated::', this.$props);
   },
   methods: {
+    messageChanged(newVal, oldVal) {
+      console.log('watch message:', newVal, oldVal);
+    },
     tiggerEvent(name, detail, option = {}) {
       const { bubbles, composed } = option;
       const event = new Event(name, {

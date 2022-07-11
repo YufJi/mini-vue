@@ -5,7 +5,7 @@ import {
   isUndef,
   hyphenate,
   formatComponentName,
-} from 'core/util/index';
+} from '../../util/index';
 
 export function extractPropsFromVNodeData(data, Ctor, tag) {
   // we are only extracting raw values here.
@@ -36,10 +36,12 @@ export function extractPropsFromVNodeData(data, Ctor, tag) {
           );
         }
       }
+
       checkProp(res, props, key, altKey, true)
-      || checkProp(res, attrs, key, altKey, false);
+        || checkProp(res, attrs, key, altKey, false);
     }
   }
+
   return res;
 }
 

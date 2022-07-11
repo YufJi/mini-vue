@@ -35,7 +35,7 @@ export function proxy(target, sourceKey, key) {
 }
 
 export function initState(vm) {
-  vm._watchers = [];
+  vm._watchers = {};
   const opts = vm.$options;
 
   if (opts.props) initProps(vm, opts.props);
@@ -59,7 +59,9 @@ function initProps(vm, propsOptions) {
 
   for (const key in propsOptions) {
     keys.push(key);
-    const value = validateProp(key, propsOptions, propsData, vm);
+    const prop = propsOptions[key];
+    const value = validateProp(key, prop, propsData, vm);
+    const { observer = '' } = prop;
     /* istanbul ignore else */
     if (process.env.NODE_ENV !== 'production') {
       const hyphenatedKey = hyphenate(key);
@@ -81,9 +83,9 @@ function initProps(vm, propsOptions) {
             vm,
           );
         }
-      });
+      }, observer);
     } else {
-      defineReactive.call(vm, props, key, value);
+      defineReactive.call(vm, props, key, value, null, observer);
     }
     // static props are already proxied on the component's prototype
     // during Vue.extend(). We only need to proxy props defined at
@@ -225,7 +227,7 @@ export function stateMixin(Vue) {
   };
 }
 
-export function defineReactive(obj, key, val, customSetter) {
+export function defineReactive(obj, key, val, customSetter, observer) {
   const vm = this;
   const property = Object.getOwnPropertyDescriptor(obj, key);
 
@@ -265,6 +267,10 @@ export function defineReactive(obj, key, val, customSetter) {
         setter.call(obj, newVal);
       } else {
         val = newVal;
+      }
+
+      if (typeof observer === 'string') {
+        typeof vm[observer] === 'function' && vm[observer].call(vm, newVal, value);
       }
 
       queueUpdater(vm);

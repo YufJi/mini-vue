@@ -188,6 +188,7 @@ export function createPatchFunction(backend) {
       vnode.data.pendingInsert = null;
     }
 
+    // 设置vnode指向的真实dom为第一层
     vnode.elm = vnode.componentInstance.$el;
 
     if (isPatchable(vnode)) {

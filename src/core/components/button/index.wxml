@@ -1,0 +1,3 @@
+<i class="icon" wx:if="{{loading}}"></i>
+<slot></slot>
+<div class="mask" wx:if="{{disabled && type === 'default'}}"></div>

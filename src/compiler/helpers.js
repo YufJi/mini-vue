@@ -52,16 +52,6 @@ export function addHandler(el, name, value, modifiers, warn, range) {
     name = prependModifierMarker('!', name);
   }
 
-  if (modifiers.once) {
-    delete modifiers.once;
-    name = prependModifierMarker('~', name);
-  }
-  /* istanbul ignore if */
-  if (modifiers.passive) {
-    delete modifiers.passive;
-    name = prependModifierMarker('&', name);
-  }
-
   const events = el.events || (el.events = {});
 
   const newHandler = rangeSetItem({ value: value.trim() }, range);

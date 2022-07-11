@@ -11,7 +11,7 @@ var generate$1 = _interopDefault(require('@babel/generator'));
 var t = _interopDefault(require('@babel/types'));
 
 var isHTMLTag = makeMap(
-  'html,body,base,head,link,meta,style,title,block,fragment'
+  'html,body,base,head,link,meta,style,title,block,block'
   + 'address,article,aside,footer,header,h1,h2,h3,h4,h5,h6,hgroup,nav,section,'
   + 'div,dd,dl,dt,figcaption,figure,picture,hr,img,li,main,ol,p,pre,ul,'
   + 'a,b,abbr,bdi,bdo,br,cite,code,data,dfn,em,i,kbd,mark,q,rp,rt,rtc,ruby,'
@@ -107,12 +107,12 @@ function makeMap(str, expectsLowerCase) {
 /**
  * Check if a tag is a built-in tag.
  */
-var isBuiltInTag = makeMap('slot', true);
+var isBuiltInTag = makeMap('slot,template,import,include,wxs', true);
 
 /**
  * Check if an attribute is a reserved attribute.
  */
-var isReservedAttribute = makeMap('key,ref,slot,slot-scope,is');
+var isReservedAttribute = makeMap('key,ref,slot,is');
 
 /**
  * Create a cached version of a pure function.
@@ -211,16 +211,6 @@ function addHandler(el, name, value, modifiers, warn, range) {
   if (modifiers.capture) {
     delete modifiers.capture;
     name = prependModifierMarker('!', name);
-  }
-
-  if (modifiers.once) {
-    delete modifiers.once;
-    name = prependModifierMarker('~', name);
-  }
-  /* istanbul ignore if */
-  if (modifiers.passive) {
-    delete modifiers.passive;
-    name = prependModifierMarker('&', name);
   }
 
   var events = el.events || (el.events = {});
@@ -612,7 +602,8 @@ var fullExpressionTagReg = /^\{\{([^`{}]+)\}\}$/;
 var expressionTagReg = /\{\{([^`{}]+)\}\}/g;
 
 function escapeString(str) {
-  return str.replace(/[\\']/g, '\\$&');
+  return str.replace(/[\\']/g, '\\$&')
+    .replace(/[\r\n]/g, '');
 }
 
 function hasExpression(str) {
@@ -1089,7 +1080,8 @@ function parse(template, options) {
         }
         var res;
         var child;
-        if (text !== ' ' && (res = text)) {
+
+        if (text !== ' ' && (res = text) && hasExpression(res)) {
           child = {
             type: 2,
             expression: res,
@@ -1101,6 +1093,7 @@ function parse(template, options) {
             text: text,
           };
         }
+
         if (child) {
           if (process.env.NODE_ENV !== 'production' && options.outputSourceRange) {
             child.start = start;
@@ -1138,7 +1131,6 @@ function processElement(element, options) {
     && !element.attrsList.length
   );
 
-  processBlock(element);
   processSlotContent(element);
   processSlotOutlet(element);
   processWxs(element);
@@ -1288,12 +1280,6 @@ function processSlotOutlet(el) {
         getRawBindingAttr(el, 'key')
       );
     }
-  }
-}
-
-function processBlock(el) {
-  if (el.tag === 'block') {
-    el.tag = 'fragment';
   }
 }
 
@@ -1456,6 +1442,7 @@ function markStatic(node) {
         node.static = false;
       }
     }
+
     if (node.ifConditions) {
       for (var i$1 = 1, l$1 = node.ifConditions.length; i$1 < l$1; i$1++) {
         var ref = node.ifConditions[i$1];
@@ -1471,26 +1458,25 @@ function markStatic(node) {
 
 function markStaticRoots(node, isInFor) {
   if (node.type === 1) {
-    if (node.static || node.once) {
+    if (node.static) {
       node.staticInFor = isInFor;
     }
     // For a node to qualify as a static root, it should have children that
     // are not just static text. Otherwise the cost of hoisting out will
     // outweigh the benefits and it's better off to just always render it fresh.
-    if (node.static && node.children.length && !(
-      node.children.length === 1
-      && node.children[0].type === 3
-    )) {
+    if (node.static && node.children.length && (node.children.length !== 1 || node.children[0].type !== 3)) {
       node.staticRoot = true;
       return;
     } else {
       node.staticRoot = false;
     }
+
     if (node.children) {
       for (var i = 0, l = node.children.length; i < l; i++) {
         markStaticRoots(node.children[i], isInFor || !!node.for);
       }
     }
+
     if (node.ifConditions) {
       for (var i$1 = 1, l$1 = node.ifConditions.length; i$1 < l$1; i$1++) {
         markStaticRoots(node.ifConditions[i$1].block, isInFor);
@@ -1509,18 +1495,25 @@ function isStatic(node) {
 
   return !!((
     !node.hasBindings // no dynamic bindings
-    && !node.if && !node.for // not v-if or v-for or v-else
+    && !node.if // not v-if or v-else
+    && !node.for // not v-for
     && !isBuiltInTag(node.tag) // not a built-in
     && isPlatformReservedTag(node.tag) // not a component
-    && !isDirectChildOfTemplateFor(node)
+    && !isDirectChildOfBlockFor(node)
     && Object.keys(node).every(isStaticKey)
   ) || node.pre);
 }
 
-function isDirectChildOfTemplateFor(node) {
+/**
+ * <
+ * <block wx:for="{{[1,2,3]}}">
+ *  {{ item }}
+ * </block>
+ */
+function isDirectChildOfBlockFor(node) {
   while (node.parent) {
     node = node.parent;
-    if (node.tag !== 'template') {
+    if (node.tag !== 'block') {
       return false;
     }
     if (node.for) {
@@ -1675,7 +1668,7 @@ function genElement(el, state) {
 function genStatic(el, state) {
   el.staticProcessed = true;
   state.staticRenderFns.push(genRenderFn(genElement(el, state)));
-  return ("_m(" + (state.staticRenderFns.length - 1) + (el.staticInFor ? ',true' : '') + ")");
+  return ("_m(_x," + (state.staticRenderFns.length - 1) + "," + (el.staticInFor ? 'true' : 'false') + ")");
 }
 
 function genIf(el, state, altGen, altEmpty) {
@@ -1899,7 +1892,7 @@ function genTemplate(el, state) {
   } else if (el.templateDefine) {
     // 拿到children
     var children = genChildren(el, state, true);
-    var code = "_c('fragment'" + (children ? ("," + children) : '') + ")";
+    var code = "_c('block'" + (children ? ("," + children) : '') + ")";
 
     state.innerTpls[el.templateDefine] = genRenderFn(code);
 

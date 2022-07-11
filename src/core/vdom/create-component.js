@@ -33,7 +33,6 @@ const componentVNodeHooks = {
     updateChildComponent(
       child,
       options.propsData, // updated props
-      options.listeners, // updated listeners
       vnode, // new parent vnode
       options.children, // new children
     );
@@ -114,18 +113,13 @@ export function createComponent(Ctor, data, context, children, tag) {
     undefined,
     undefined,
     context,
-    { Ctor, propsData, listeners: {}, tag, children },
+    { Ctor, propsData, tag, children },
   );
 
   return vnode;
 }
 
-export function createComponentInstanceForVnode(
-  // we know it's MountedComponentVNode but flow doesn't
-  vnode,
-  // activeInstance in lifecycle state
-  parent,
-) {
+export function createComponentInstanceForVnode(vnode, parent) {
   const options = {
     _isComponent: true,
     _parentVnode: vnode,
