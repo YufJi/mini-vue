@@ -30,4 +30,4 @@ Vue.prototype.setData = function (data) {
 # 后续计划
 
 - [ ] 将[tiny-v1](https://github.com/YufJi/tiny-v1)中的渲染层替换掉
-= [ ] mixins配置改用小程序的behavior方式
+- [ ] mixins配置改用小程序的behavior方式
