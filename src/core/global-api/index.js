@@ -1,7 +1,7 @@
 import { ASSET_TYPES } from 'shared/constants';
 
 import config from '../config';
-import builtInComponents from '../components/index';
+import builtInComponents from '../components';
 import { initUse } from './use';
 import { initMixin } from './mixin';
 import { initExtend } from './extend';
@@ -41,6 +41,7 @@ export function initGlobalAPI(Vue) {
   Vue.nextTick = nextTick;
 
   Vue.options = Object.create(null);
+
   ASSET_TYPES.forEach((type) => {
     Vue.options[`${type}s`] = Object.create(null);
   });

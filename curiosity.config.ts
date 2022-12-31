@@ -40,9 +40,6 @@ export default (env): IConfig => {
     },
     devServer: {
       port: 8088,
-      static: [
-        path.join(__dirname, 'public'),
-      ],
     },
     analyzer: false,
     define: {

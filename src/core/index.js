@@ -4,18 +4,22 @@ import {
   query,
 } from 'shared/util/index';
 import Vue from './instance/index';
-import { initGlobalAPI } from './global-api/index';
-import config from './config';
 import { mountComponent } from './instance/lifecycle';
-import { devtools, inBrowser } from './util/index';
-import { patch } from './patch';
+import { createPatchFunction } from './vdom/patch';
+import modules from './vdom/modules/index';
 
+import { initGlobalAPI } from './global-api/index';
+import { devtools, inBrowser } from './util/index';
+import * as nodeOps from './node-ops';
+import config from './config';
+
+// Vue.options以及一些全局api
 initGlobalAPI(Vue);
 
 Vue.version = '__VERSION__';
 
 // install platform patch function
-Vue.prototype.__patch__ = inBrowser ? patch : noop;
+Vue.prototype.__patch__ = inBrowser ? createPatchFunction({ modules, nodeOps }) : noop;
 
 // public mount method
 Vue.prototype.$mount = function (el) {

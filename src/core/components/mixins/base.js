@@ -1,7 +1,4 @@
 export default {
-  mounted() {
-
-  },
   methods: {
     hasBehavior(type) {
       if (type === 'base') {

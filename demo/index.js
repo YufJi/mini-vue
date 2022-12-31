@@ -8,4 +8,6 @@ import './index.css';
 // 全局组件
 Vue.component('global-a', gloablA);
 
-new Vue(Page).$mount('#app');
+const vm = new Vue(Page);
+
+vm.$mount('#app');

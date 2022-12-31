@@ -12,10 +12,15 @@ function Vue(options) {
   this._init(options);
 }
 
+// _init
 initMixin(Vue);
+// setData
 stateMixin(Vue);
+// $eventBinder
 eventsMixin(Vue);
+// _updateComponent _update
 lifecycleMixin(Vue);
+// _render
 renderMixin(Vue);
 
 export default Vue;

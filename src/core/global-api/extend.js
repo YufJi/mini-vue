@@ -59,7 +59,8 @@ export function initExtend(Vue) {
     ASSET_TYPES.forEach((type) => {
       Sub[type] = Super[type];
     });
-    // enable recursive self-lookup
+
+    // 允许递归自查找
     if (name) {
       Sub.options.components[name] = Sub;
     }

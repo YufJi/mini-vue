@@ -14,10 +14,11 @@ import {
   isUndef,
 } from 'shared/util/index';
 
-import config from '../config';
-import { unicodeRegExp } from './lang';
-import { nativeWatch, hasSymbol } from './env';
-import { warn } from './debug';
+import config from '../../config';
+import { unicodeRegExp } from '../lang';
+import { nativeWatch, hasSymbol } from '../env';
+import { warn } from '../debug';
+import normalizeProps from './normalizeProps';
 
 /**
  * Option overwriting strategies are functions that handle
@@ -176,37 +177,6 @@ ASSET_TYPES.forEach((type) => {
 });
 
 /**
- * Watchers.
- *
- * Watchers hashes should not overwrite one
- * another, so we merge them as arrays.
- */
-strats.watch = function (parentVal, childVal, vm, key) {
-  // work around Firefox's Object.prototype.watch...
-  if (parentVal === nativeWatch) parentVal = undefined;
-  if (childVal === nativeWatch) childVal = undefined;
-  /* istanbul ignore if */
-  if (!childVal) return Object.create(parentVal || null);
-  if (process.env.NODE_ENV !== 'production') {
-    assertObjectType(key, childVal, vm);
-  }
-  if (!parentVal) return childVal;
-  const ret = {};
-  extend(ret, parentVal);
-  for (const key in childVal) {
-    let parent = ret[key];
-    const child = childVal[key];
-    if (parent && !Array.isArray(parent)) {
-      parent = [parent];
-    }
-    ret[key] = parent
-      ? parent.concat(child)
-      : Array.isArray(child) ? child : [child];
-  }
-  return ret;
-};
-
-/**
  * Other object hashes.
  */
 strats.props = strats.methods = strats.inject = strats.computed = function (parentVal, childVal, vm, key) {
@@ -253,46 +223,6 @@ export function validateComponentName(name) {
   }
 }
 
-/**
- * Ensure all props option syntax are normalized into the
- * Object-based format.
- */
-function normalizeProps(options, vm) {
-  const { props } = options;
-  if (!props) return;
-  const res = {};
-  let i;
-  let val;
-  let name;
-  if (Array.isArray(props)) {
-    i = props.length;
-    while (i--) {
-      val = props[i];
-      if (typeof val === 'string') {
-        name = camelize(val);
-        res[name] = { type: null };
-      } else if (process.env.NODE_ENV !== 'production') {
-        warn('props must be strings when using array syntax.');
-      }
-    }
-  } else if (isPlainObject(props)) {
-    for (const key in props) {
-      val = props[key];
-      name = camelize(key);
-      res[name] = isPlainObject(val)
-        ? val
-        : { type: val };
-    }
-  } else if (process.env.NODE_ENV !== 'production') {
-    warn(
-      'Invalid value for option "props": expected an Array or an Object, '
-      + `but got ${toRawType(props)}.`,
-      vm,
-    );
-  }
-  options.props = res;
-}
-
 function assertObjectType(name, value, vm) {
   if (!isPlainObject(value)) {
     warn(
@@ -318,16 +248,13 @@ export function mergeOptions(parent, child, vm) {
 
   normalizeProps(child, vm);
 
-  // Apply extends and mixins on the child options,
+  // Apply mixins on the child options,
   // but only if it is a raw options object that isn't
   // the result of another mergeOptions call.
   // Only merged options has the _base property.
   if (!child._base) {
-    if (child.extends) {
-      parent = mergeOptions(parent, child.extends, vm);
-    }
     if (child.mixins) {
-      for (let i = 0, l = child.mixins.length; i < l; i++) {
+      for (let i = 0, l = child.mixins.length; i < l; i+=1) {
         parent = mergeOptions(parent, child.mixins[i], vm);
       }
     }
@@ -347,6 +274,7 @@ export function mergeOptions(parent, child, vm) {
     const strat = strats[key] || defaultStrat;
     options[key] = strat(parent[key], child[key], vm, key);
   }
+
   return options;
 }
 

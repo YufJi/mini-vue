@@ -65,7 +65,7 @@ export function initMixin(Vue) {
   };
 }
 
-export function initInternalComponent(vm, options) {
+function initInternalComponent(vm, options) {
   // 拿到构造函数上的options
   const opts = vm.$options = Object.create(vm.constructor.options);
   // doing this because it's faster than dynamic enumeration.
@@ -87,9 +87,12 @@ export function initInternalComponent(vm, options) {
 
 export function resolveConstructorOptions(Ctor) {
   let { options } = Ctor;
+
+  // VueComponent
   if (Ctor.super) {
     const superOptions = resolveConstructorOptions(Ctor.super);
     const cachedSuperOptions = Ctor.superOptions;
+
     if (superOptions !== cachedSuperOptions) {
       // super option changed,
       // need to resolve new options.
@@ -101,11 +104,13 @@ export function resolveConstructorOptions(Ctor) {
         extend(Ctor.extendOptions, modifiedOptions);
       }
       options = Ctor.options = mergeOptions(superOptions, Ctor.extendOptions);
+
       if (options.name) {
         options.components[options.name] = Ctor;
       }
     }
   }
+
   return options;
 }
 

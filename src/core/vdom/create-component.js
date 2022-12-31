@@ -86,21 +86,6 @@ export function createComponent(Ctor, data, context, children, tag) {
   // extract props
   const propsData = extractPropsFromVNodeData(data, Ctor, tag);
 
-  // extract listeners, since these needs to be treated as
-  // child component listeners instead of DOM listeners
-
-  if (isTrue(Ctor.options.abstract)) {
-    // abstract components do not keep anything
-    // other than props & listeners & slot
-
-    // work around flow
-    const { slot } = data;
-    data = {};
-    if (slot) {
-      data.slot = slot;
-    }
-  }
-
   // install component management hooks onto the placeholder node
   installComponentHooks(data);
 
@@ -119,7 +104,7 @@ export function createComponent(Ctor, data, context, children, tag) {
   return vnode;
 }
 
-export function createComponentInstanceForVnode(vnode, parent) {
+function createComponentInstanceForVnode(vnode, parent) {
   const options = {
     _isComponent: true,
     _parentVnode: vnode,

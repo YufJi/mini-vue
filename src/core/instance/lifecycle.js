@@ -16,7 +16,7 @@ import { queueUpdater } from '../scheduler';
 export let activeInstance = null;
 export let isUpdatingChildComponent = false;
 
-export function setActiveInstance(vm) {
+function setActiveInstance(vm) {
   const prevActiveInstance = activeInstance;
   activeInstance = vm;
   return () => {
@@ -27,12 +27,8 @@ export function setActiveInstance(vm) {
 export function initLifecycle(vm) {
   const options = vm.$options;
 
-  // locate first non-abstract parent
-  let { parent } = options;
-  if (parent && !options.abstract) {
-    while (parent.$options.abstract && parent.$parent) {
-      parent = parent.$parent;
-    }
+  const { parent } = options;
+  if (parent) {
     parent.$children.push(vm);
   }
 
@@ -120,7 +116,7 @@ export function lifecycleMixin(Vue) {
     vm._isBeingDestroyed = true;
     // remove self from parent
     const parent = vm.$parent;
-    if (parent && !parent._isBeingDestroyed && !vm.$options.abstract) {
+    if (parent && !parent._isBeingDestroyed) {
       remove(parent.$children, vm);
     }
 
@@ -158,6 +154,7 @@ export function mountComponent(vm, el) {
     vm._isMounted = true;
     callHook(vm, 'mounted');
   }
+
   return vm;
 }
 

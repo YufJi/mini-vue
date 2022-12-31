@@ -40,6 +40,8 @@
 </global-a>
 
 
+<tiny-icon type="warn"></tiny-icon>
+
 <p wx:if="{{message === 'abc'}}">{{ message }}</p>
 <p wx:else>No message.</p>
 
@@ -59,3 +61,4 @@
 <div>
   <span>i am static</span>
 </div>
+

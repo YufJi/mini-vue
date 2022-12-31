@@ -41,9 +41,7 @@ export function _createElement(context, tag, data, children, normalizationType) 
     return createEmptyVNode();
   }
   // warn against non-primitive key
-  if (process.env.NODE_ENV !== 'production'
-    && isDef(data) && isDef(data.key) && !isPrimitive(data.key)
-  ) {
+  if (process.env.NODE_ENV !== 'production' && isDef(data) && isDef(data.key) && !isPrimitive(data.key)) {
     warn(
       'Avoid using non-primitive value as key, '
       + 'use string/number value instead.',

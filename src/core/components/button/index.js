@@ -3,6 +3,8 @@ import * as template from './index.wxml';
 
 import './index.less';
 
+// base hover ins
+
 export default {
   name: 'tiny-button',
   mixins: [base, hover],
