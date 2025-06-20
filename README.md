@@ -8,7 +8,7 @@ vue中一些非必要的概念能力都做了删减，如指令、v-model、filt
 ```
 yarn
 
-yarn dev
+yarn start
 ```
 
 
